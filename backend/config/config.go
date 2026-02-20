@@ -1,0 +1,163 @@
+package config
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/spf13/viper"
+)
+
+type Config struct {
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Logger     LoggerConfig     `mapstructure:"logger"`
+	Nova       NovaConfig       `mapstructure:"nova"`
+	Polymarket PolymarketConfig `mapstructure:"polymarket"`
+	Worker     WorkerConfig     `mapstructure:"worker"`
+}
+
+type ServerConfig struct {
+	Port string `mapstructure:"port"`
+	Mode string `mapstructure:"mode"`
+}
+
+type DatabaseConfig struct {
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
+	DBName       string `mapstructure:"dbname"`
+	SSLMode      string `mapstructure:"sslmode"`
+	MaxIdleConns int    `mapstructure:"max_idle_conns"`
+	MaxOpenConns int    `mapstructure:"max_open_conns"`
+	AutoMigrate  bool   `mapstructure:"auto_migrate"`
+}
+
+type LoggerConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"`
+}
+
+type NovaConfig struct {
+	Enabled            bool          `mapstructure:"enabled"`
+	Region             string        `mapstructure:"region"`
+	AnalysisModel      string        `mapstructure:"analysis_model"`
+	MaxTokens          int           `mapstructure:"max_tokens"`
+	Temperature        float32       `mapstructure:"temperature"`
+	AnalysisCacheHours time.Duration `mapstructure:"analysis_cache_hours"`
+}
+
+type PolymarketConfig struct {
+	GammaAPIURL string        `mapstructure:"gamma_api_url"`
+	DataAPIURL  string        `mapstructure:"data_api_url"`
+	RequestTO   time.Duration `mapstructure:"request_timeout"`
+}
+
+type WorkerConfig struct {
+	Enabled                  bool          `mapstructure:"enabled"`
+	MarketSyncerInterval     time.Duration `mapstructure:"market_syncer_interval"`
+	TradeSyncerInterval      time.Duration `mapstructure:"trade_syncer_interval"`
+	OffchainSyncerInterval   time.Duration `mapstructure:"offchain_event_syncer_interval"`
+	FeatureBuilderInterval   time.Duration `mapstructure:"feature_builder_interval"`
+	ScoreCalculatorInterval  time.Duration `mapstructure:"score_calculator_interval"`
+	AnomalyDetectorInterval  time.Duration `mapstructure:"anomaly_detector_interval"`
+	RunOnStartup             bool          `mapstructure:"run_on_startup"`
+	MaxTradesPerSync         int           `mapstructure:"max_trades_per_sync"`
+	MaxMarketsPerSync        int           `mapstructure:"max_markets_per_sync"`
+	MaxOffchainEventsPerSync int           `mapstructure:"max_offchain_events_per_sync"`
+}
+
+func Load(path string) (*Config, error) {
+	v := viper.New()
+	v.SetConfigFile(path)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	v.SetDefault("server.port", "8080")
+	v.SetDefault("server.mode", "debug")
+	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.sslmode", "disable")
+	v.SetDefault("database.max_idle_conns", 10)
+	v.SetDefault("database.max_open_conns", 100)
+	v.SetDefault("database.auto_migrate", false)
+	v.SetDefault("logger.level", "info")
+	v.SetDefault("logger.format", "json")
+	v.SetDefault("nova.enabled", false)
+	v.SetDefault("nova.region", "us-east-1")
+	v.SetDefault("nova.analysis_model", "us.amazon.nova-2-lite-v1:0")
+	v.SetDefault("nova.max_tokens", 2048)
+	v.SetDefault("nova.temperature", 0.0)
+	v.SetDefault("nova.analysis_cache_hours", "24h")
+	v.SetDefault("polymarket.gamma_api_url", "https://gamma-api.polymarket.com")
+	v.SetDefault("polymarket.data_api_url", "https://data-api.polymarket.com")
+	v.SetDefault("polymarket.request_timeout", "20s")
+	v.SetDefault("worker.enabled", false)
+	v.SetDefault("worker.market_syncer_interval", "10m")
+	v.SetDefault("worker.trade_syncer_interval", "5m")
+	v.SetDefault("worker.offchain_event_syncer_interval", "15m")
+	v.SetDefault("worker.feature_builder_interval", "30m")
+	v.SetDefault("worker.score_calculator_interval", "1h")
+	v.SetDefault("worker.anomaly_detector_interval", "10m")
+	v.SetDefault("worker.run_on_startup", true)
+	v.SetDefault("worker.max_trades_per_sync", 200)
+	v.SetDefault("worker.max_markets_per_sync", 100)
+	v.SetDefault("worker.max_offchain_events_per_sync", 50)
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
+	}
+	// Ensure env overrides are honored for nested fields.
+	cfg.Server.Port = v.GetString("server.port")
+	cfg.Server.Mode = v.GetString("server.mode")
+
+	cfg.Database.Host = v.GetString("database.host")
+	cfg.Database.Port = v.GetInt("database.port")
+	cfg.Database.User = v.GetString("database.user")
+	cfg.Database.Password = v.GetString("database.password")
+	cfg.Database.DBName = v.GetString("database.dbname")
+	cfg.Database.SSLMode = v.GetString("database.sslmode")
+	cfg.Database.MaxIdleConns = v.GetInt("database.max_idle_conns")
+	cfg.Database.MaxOpenConns = v.GetInt("database.max_open_conns")
+	cfg.Database.AutoMigrate = v.GetBool("database.auto_migrate")
+
+	cfg.Logger.Level = v.GetString("logger.level")
+	cfg.Logger.Format = v.GetString("logger.format")
+
+	cfg.Nova.Enabled = v.GetBool("nova.enabled")
+	cfg.Nova.Region = v.GetString("nova.region")
+	cfg.Nova.AnalysisModel = v.GetString("nova.analysis_model")
+	cfg.Nova.MaxTokens = v.GetInt("nova.max_tokens")
+	cfg.Nova.Temperature = float32(v.GetFloat64("nova.temperature"))
+	cfg.Nova.AnalysisCacheHours = v.GetDuration("nova.analysis_cache_hours")
+
+	cfg.Polymarket.GammaAPIURL = v.GetString("polymarket.gamma_api_url")
+	cfg.Polymarket.DataAPIURL = v.GetString("polymarket.data_api_url")
+	cfg.Polymarket.RequestTO = v.GetDuration("polymarket.request_timeout")
+
+	cfg.Worker.Enabled = v.GetBool("worker.enabled")
+	cfg.Worker.MarketSyncerInterval = v.GetDuration("worker.market_syncer_interval")
+	cfg.Worker.TradeSyncerInterval = v.GetDuration("worker.trade_syncer_interval")
+	cfg.Worker.OffchainSyncerInterval = v.GetDuration("worker.offchain_event_syncer_interval")
+	cfg.Worker.FeatureBuilderInterval = v.GetDuration("worker.feature_builder_interval")
+	cfg.Worker.ScoreCalculatorInterval = v.GetDuration("worker.score_calculator_interval")
+	cfg.Worker.AnomalyDetectorInterval = v.GetDuration("worker.anomaly_detector_interval")
+	cfg.Worker.RunOnStartup = v.GetBool("worker.run_on_startup")
+	cfg.Worker.MaxTradesPerSync = v.GetInt("worker.max_trades_per_sync")
+	cfg.Worker.MaxMarketsPerSync = v.GetInt("worker.max_markets_per_sync")
+	cfg.Worker.MaxOffchainEventsPerSync = v.GetInt("worker.max_offchain_events_per_sync")
+
+	return &cfg, nil
+}
+
+func (d DatabaseConfig) DSN() string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode,
+	)
+}

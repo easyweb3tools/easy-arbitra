@@ -1,0 +1,44 @@
+server:
+  port: "8080"
+  mode: debug
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: ${DB_PASSWORD}
+  dbname: easy_arbitra
+  sslmode: disable
+  max_idle_conns: 10
+  max_open_conns: 100
+  auto_migrate: false
+
+logger:
+  level: info
+  format: json
+
+nova:
+  enabled: false
+  region: us-east-1
+  analysis_model: us.amazon.nova-2-lite-v1:0
+  max_tokens: 4096
+  temperature: 0.0
+  analysis_cache_hours: 24h
+
+polymarket:
+  gamma_api_url: https://gamma-api.polymarket.com
+  data_api_url: https://data-api.polymarket.com
+  request_timeout: 20s
+
+worker:
+  enabled: false
+  market_syncer_interval: 10m
+  trade_syncer_interval: 5m
+  offchain_event_syncer_interval: 15m
+  feature_builder_interval: 30m
+  score_calculator_interval: 1h
+  anomaly_detector_interval: 10m
+  run_on_startup: true
+  max_trades_per_sync: 200
+  max_markets_per_sync: 100
+  max_offchain_events_per_sync: 50
