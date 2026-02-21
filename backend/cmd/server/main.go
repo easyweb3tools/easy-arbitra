@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"easy-arbitra/backend/config"
 	"easy-arbitra/backend/internal/ai"
@@ -20,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 func main() {
@@ -34,7 +37,17 @@ func main() {
 	}
 	defer func() { _ = lg.Sync() }()
 
-	db, err := gorm.Open(postgres.Open(cfg.Database.DSN()), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(cfg.Database.DSN()), &gorm.Config{
+		Logger: gormlogger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			gormlogger.Config{
+				SlowThreshold:             time.Second,
+				LogLevel:                  gormlogger.Warn,
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  false,
+			},
+		),
+	})
 	if err != nil {
 		log.Fatalf("connect database: %v", err)
 	}

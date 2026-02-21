@@ -20,6 +20,21 @@ type TradeDTO struct {
 	FeePaid         float64 `json:"fee"`
 }
 
+type tradeWireDTO struct {
+	TransactionHash string  `json:"transactionHash"`
+	Timestamp       int64   `json:"timestamp"`
+	Market          string  `json:"market"`
+	ConditionID     string  `json:"conditionId"`
+	TokenID         string  `json:"asset"`
+	MakerAddress    string  `json:"makerAddress"`
+	TakerAddress    string  `json:"takerAddress"`
+	ProxyWallet     string  `json:"proxyWallet"`
+	Price           float64 `json:"price"`
+	Size            float64 `json:"size"`
+	Side            string  `json:"side"`
+	FeePaid         float64 `json:"fee"`
+}
+
 type DataAPIClient struct {
 	http *HTTPClient
 }
@@ -44,24 +59,51 @@ func (c *DataAPIClient) FetchTrades(ctx context.Context, limit int) ([]TradeDTO,
 }
 
 func decodeTrades(raw json.RawMessage) ([]TradeDTO, error) {
-	var arr []TradeDTO
+	var arr []tradeWireDTO
 	if err := json.Unmarshal(raw, &arr); err == nil {
-		return arr, nil
+		return normalizeTrades(arr), nil
 	}
 
 	var wrapped struct {
-		Data []TradeDTO `json:"data"`
+		Data []tradeWireDTO `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err == nil && wrapped.Data != nil {
-		return wrapped.Data, nil
+		return normalizeTrades(wrapped.Data), nil
 	}
 
 	var wrappedTrades struct {
-		Trades []TradeDTO `json:"trades"`
+		Trades []tradeWireDTO `json:"trades"`
 	}
 	if err := json.Unmarshal(raw, &wrappedTrades); err == nil && wrappedTrades.Trades != nil {
-		return wrappedTrades.Trades, nil
+		return normalizeTrades(wrappedTrades.Trades), nil
 	}
 
 	return nil, fmt.Errorf("unsupported data-api response format")
+}
+
+func normalizeTrades(rows []tradeWireDTO) []TradeDTO {
+	out := make([]TradeDTO, 0, len(rows))
+	for _, row := range rows {
+		market := row.Market
+		if row.ConditionID != "" {
+			market = row.ConditionID
+		}
+		taker := row.TakerAddress
+		if taker == "" {
+			taker = row.ProxyWallet
+		}
+		out = append(out, TradeDTO{
+			TransactionHash: row.TransactionHash,
+			Timestamp:       row.Timestamp,
+			Market:          market,
+			TokenID:         row.TokenID,
+			MakerAddress:    row.MakerAddress,
+			TakerAddress:    taker,
+			Price:           row.Price,
+			Size:            row.Size,
+			Side:            row.Side,
+			FeePaid:         row.FeePaid,
+		})
+	}
+	return out
 }

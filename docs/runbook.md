@@ -7,12 +7,11 @@
 4. Backend health: `curl -sf http://localhost:8080/healthz`
 5. Backend ready: `curl -sf http://localhost:8080/readyz`
 
-## 2. Seed Data
+## 2. Database Migration
 1. Apply migrations: `cd backend && make migrate`
-2. Run seed: `cd backend && make seed`
 
 ## 3. One-Command Bootstrap
-- Run `./scripts/bootstrap_dev.sh` to start containers, migrate DB, seed data, and execute smoke tests.
+- Run `./scripts/bootstrap_dev.sh` to start containers, migrate DB, and execute smoke tests.
 
 ## 4. Common Operations
 - Restart backend only: `docker compose restart backend`

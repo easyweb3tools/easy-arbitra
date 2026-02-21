@@ -46,7 +46,7 @@ func (s *TradeSyncer) RunOnce(ctx context.Context) error {
 		return err
 	}
 	for _, trade := range trades {
-		if strings.TrimSpace(trade.TransactionHash) == "" || strings.TrimSpace(trade.TokenID) == "" {
+		if strings.TrimSpace(trade.TransactionHash) == "" || strings.TrimSpace(trade.TokenID) == "" || strings.TrimSpace(trade.Market) == "" {
 			continue
 		}
 

@@ -33,8 +33,12 @@ services:
       DATABASE_DBNAME: ${POSTGRES_DB:-easy_arbitra}
       DATABASE_SSLMODE: disable
       DATABASE_AUTO_MIGRATE: "false"
+      WORKER_ENABLED: "true"
       LOGGER_LEVEL: info
       LOGGER_FORMAT: console
+      POLYMARKET_GAMMA_API_URL: https://gamma-api.polymarket.com
+      POLYMARKET_DATA_API_URL: https://data-api.polymarket.com
+      WORKER_RUN_ON_STARTUP: "true"
     ports:
       - "8080:8080"
     volumes:

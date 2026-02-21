@@ -27,7 +27,6 @@ jobs:
       - name: Run API smoke
         run: |
           docker compose exec -T backend sh -lc 'cd /app && DATABASE_HOST=postgres DATABASE_PORT=5432 DATABASE_USER=postgres DATABASE_PASSWORD=postgres DATABASE_DBNAME=easy_arbitra DATABASE_SSLMODE=disable /usr/local/go/bin/go run ./cmd/migrate'
-          docker compose exec -T backend sh -lc 'cd /app && DATABASE_HOST=postgres DATABASE_PORT=5432 DATABASE_USER=postgres DATABASE_PASSWORD=postgres DATABASE_DBNAME=easy_arbitra DATABASE_SSLMODE=disable DATABASE_AUTO_MIGRATE=false /usr/local/go/bin/go run ./cmd/seed'
           ./scripts/e2e_api_smoke.sh
       - name: Run UI smoke
         run: ./scripts/e2e_ui_smoke.sh

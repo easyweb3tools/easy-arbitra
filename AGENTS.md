@@ -4,7 +4,6 @@
 - `backend/`: Go API, workers, data ingestion, and AI analysis.
   - `cmd/server`: HTTP server entrypoint.
   - `cmd/migrate`: SQL migration runner.
-  - `cmd/seed`: dev seed data loader.
   - `internal/`: domain modules (`api`, `service`, `repository`, `worker`, `client`, `ai`).
   - `migrations/`: ordered SQL migrations (`001_*.sql`, `002_*.sql`, ...).
 - `frontend/`: Next.js App Router UI.
@@ -20,13 +19,12 @@
   - `cd backend && make run`: run API locally.
   - `cd backend && make test`: run Go tests.
   - `cd backend && make migrate`: apply SQL migrations.
-  - `cd backend && make seed`: load sample data.
 - Frontend:
   - `cd frontend && npm run dev`: run UI dev server.
   - `cd frontend && npm run build`: production build check.
   - `cd frontend && npm run test:e2e`: Playwright smoke tests.
 - Full stack (recommended):
-  - `./scripts/bootstrap_dev.sh`: start Docker stack, migrate, seed, run API/UI smoke.
+  - `./scripts/bootstrap_dev.sh`: start Docker stack, migrate, run API/UI smoke.
 
 ## Coding Style & Naming Conventions
 - Go: run `gofmt` before commit; keep packages focused by domain.

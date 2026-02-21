@@ -31,7 +31,7 @@ polymarket:
   request_timeout: 20s
 
 worker:
-  enabled: false
+  enabled: true
   market_syncer_interval: 10m
   trade_syncer_interval: 5m
   offchain_event_syncer_interval: 15m
