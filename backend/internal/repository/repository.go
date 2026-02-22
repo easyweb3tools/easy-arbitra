@@ -43,11 +43,11 @@ type MarketListFilter struct {
 }
 
 type WalletPnLSummary struct {
-	TradingPnL   float64 `json:"trading_pnl"`
-	MakerRebates float64 `json:"maker_rebates"`
-	FeesPaid     float64 `json:"fees_paid"`
-	TotalTrades  int64   `json:"total_trades"`
-	Volume30D    float64 `json:"volume_30d"`
+	TradingPnL   float64 `gorm:"column:trading_pnl" json:"trading_pnl"`
+	MakerRebates float64 `gorm:"column:maker_rebates" json:"maker_rebates"`
+	FeesPaid     float64 `gorm:"column:fees_paid" json:"fees_paid"`
+	TotalTrades  int64   `gorm:"column:total_trades" json:"total_trades"`
+	Volume30D    float64 `gorm:"column:volume_30d" json:"volume_30d"`
 }
 
 type WalletTimingSummary struct {
@@ -64,6 +64,37 @@ type LeaderboardRow struct {
 	SmartScore    int     `json:"smart_score"`
 	InfoEdgeLevel string  `json:"info_edge_level"`
 	ScoredAt      string  `json:"scored_at"`
+}
+
+type WalletTradeCountRow struct {
+	WalletID   int64  `gorm:"column:wallet_id"`
+	Address    []byte `gorm:"column:address"`
+	TradeCount int64  `gorm:"column:trade_count"`
+}
+
+type PotentialWalletRow struct {
+	WalletID       int64      `gorm:"column:wallet_id"`
+	Address        []byte     `gorm:"column:address"`
+	Pseudonym      *string    `gorm:"column:pseudonym"`
+	IsTracked      bool       `gorm:"column:is_tracked"`
+	TradeCount     int64      `gorm:"column:trade_count"`
+	TradingPnL     float64    `gorm:"column:trading_pnl"`
+	MakerRebates   float64    `gorm:"column:maker_rebates"`
+	RealizedPnL    float64    `gorm:"column:realized_pnl"`
+	SmartScore     int        `gorm:"column:smart_score"`
+	InfoEdgeLevel  string     `gorm:"column:info_edge_level"`
+	StrategyType   string     `gorm:"column:strategy_type"`
+	LastAnalyzedAt *time.Time `gorm:"column:last_analyzed_at"`
+}
+
+type WalletAICandidateRow struct {
+	WalletID       int64      `gorm:"column:wallet_id"`
+	Address        []byte     `gorm:"column:address"`
+	TradeCount     int64      `gorm:"column:trade_count"`
+	TradingPnL     float64    `gorm:"column:trading_pnl"`
+	MakerRebates   float64    `gorm:"column:maker_rebates"`
+	RealizedPnL    float64    `gorm:"column:realized_pnl"`
+	LastAnalyzedAt *time.Time `gorm:"column:last_analyzed_at"`
 }
 
 func NewWalletRepository(db *gorm.DB) *WalletRepository     { return &WalletRepository{db: db} }
@@ -114,6 +145,251 @@ func (r *WalletRepository) ListIDs(ctx context.Context) ([]int64, error) {
 	var ids []int64
 	err := r.db.WithContext(ctx).Model(&model.Wallet{}).Pluck("id", &ids).Error
 	return ids, err
+}
+
+func (r *WalletRepository) ListBackfillCandidates(ctx context.Context, minTrades int64, maxTrades int64, limit int) ([]WalletTradeCountRow, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows := make([]WalletTradeCountRow, 0, limit)
+	err := r.db.WithContext(ctx).Raw(`
+WITH counts AS (
+    SELECT taker_wallet_id AS wallet_id, COUNT(*) AS c
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+    GROUP BY taker_wallet_id
+    UNION ALL
+    SELECT maker_wallet_id AS wallet_id, COUNT(*) AS c
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+    GROUP BY maker_wallet_id
+),
+merged AS (
+    SELECT wallet_id, SUM(c) AS trade_count
+    FROM counts
+    GROUP BY wallet_id
+)
+SELECT w.id AS wallet_id, w.address AS address, m.trade_count
+FROM merged m
+JOIN wallet w ON w.id = m.wallet_id
+WHERE m.trade_count BETWEEN ? AND ?
+ORDER BY m.trade_count DESC, w.id ASC
+LIMIT ?`, minTrades, maxTrades, limit).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *WalletRepository) ListAIAnalyzeCandidates(
+	ctx context.Context,
+	minTrades int64,
+	minRealizedPnL float64,
+	cooldown time.Duration,
+	limit int,
+) ([]WalletAICandidateRow, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if minTrades <= 0 {
+		minTrades = 100
+	}
+	cooldownSeconds := int64(cooldown / time.Second)
+	rows := make([]WalletAICandidateRow, 0, limit)
+	err := r.db.WithContext(ctx).Raw(`
+WITH taker AS (
+    SELECT
+        taker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE
+            WHEN side = 0 THEN (price * size) - fee_paid
+            WHEN side = 1 THEN -((price * size) + fee_paid)
+            ELSE 0
+        END), 0) AS trading_pnl
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+    GROUP BY taker_wallet_id
+),
+maker AS (
+    SELECT
+        maker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+    GROUP BY maker_wallet_id
+),
+merged AS (
+    SELECT
+        x.wallet_id,
+        SUM(x.trade_count) AS trade_count,
+        SUM(x.trading_pnl) AS trading_pnl,
+        SUM(x.maker_rebates) AS maker_rebates
+    FROM (
+        SELECT wallet_id, trade_count, trading_pnl, 0::numeric AS maker_rebates FROM taker
+        UNION ALL
+        SELECT wallet_id, trade_count, 0::numeric AS trading_pnl, maker_rebates FROM maker
+    ) x
+    GROUP BY x.wallet_id
+),
+latest AS (
+    SELECT wallet_id, MAX(created_at) AS last_analyzed_at
+    FROM ai_analysis_report
+    GROUP BY wallet_id
+)
+SELECT
+    w.id AS wallet_id,
+    w.address AS address,
+    m.trade_count,
+    m.trading_pnl,
+    m.maker_rebates,
+    (m.trading_pnl + m.maker_rebates) AS realized_pnl,
+    l.last_analyzed_at
+FROM merged m
+JOIN wallet w ON w.id = m.wallet_id
+LEFT JOIN latest l ON l.wallet_id = w.id
+WHERE
+    m.trade_count >= ?
+    AND (m.trading_pnl + m.maker_rebates) > ?
+    AND (? <= 0 OR l.last_analyzed_at IS NULL OR l.last_analyzed_at < NOW() - make_interval(secs => ?))
+ORDER BY realized_pnl DESC, m.trade_count DESC, w.id ASC
+LIMIT ?`, minTrades, minRealizedPnL, cooldownSeconds, cooldownSeconds, limit).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *WalletRepository) CountPotentialWallets(
+	ctx context.Context,
+	minTrades int64,
+	minRealizedPnL float64,
+) (int64, error) {
+	if minTrades <= 0 {
+		minTrades = 100
+	}
+	var total int64
+	err := r.db.WithContext(ctx).Raw(`
+WITH taker AS (
+    SELECT
+        taker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE
+            WHEN side = 0 THEN (price * size) - fee_paid
+            WHEN side = 1 THEN -((price * size) + fee_paid)
+            ELSE 0
+        END), 0) AS trading_pnl
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+    GROUP BY taker_wallet_id
+),
+maker AS (
+    SELECT
+        maker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+    GROUP BY maker_wallet_id
+),
+merged AS (
+    SELECT
+        x.wallet_id,
+        SUM(x.trade_count) AS trade_count,
+        SUM(x.trading_pnl) AS trading_pnl,
+        SUM(x.maker_rebates) AS maker_rebates
+    FROM (
+        SELECT wallet_id, trade_count, trading_pnl, 0::numeric AS maker_rebates FROM taker
+        UNION ALL
+        SELECT wallet_id, trade_count, 0::numeric AS trading_pnl, maker_rebates FROM maker
+    ) x
+    GROUP BY x.wallet_id
+)
+SELECT COUNT(*)
+FROM merged
+WHERE trade_count >= ? AND (trading_pnl + maker_rebates) > ?`, minTrades, minRealizedPnL).Scan(&total).Error
+	return total, err
+}
+
+func (r *WalletRepository) ListPotentialWallets(
+	ctx context.Context,
+	minTrades int64,
+	minRealizedPnL float64,
+	limit int,
+	offset int,
+) ([]PotentialWalletRow, error) {
+	if minTrades <= 0 {
+		minTrades = 100
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows := make([]PotentialWalletRow, 0, limit)
+	err := r.db.WithContext(ctx).Raw(`
+WITH taker AS (
+    SELECT
+        taker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE
+            WHEN side = 0 THEN (price * size) - fee_paid
+            WHEN side = 1 THEN -((price * size) + fee_paid)
+            ELSE 0
+        END), 0) AS trading_pnl
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+    GROUP BY taker_wallet_id
+),
+maker AS (
+    SELECT
+        maker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+    GROUP BY maker_wallet_id
+),
+merged AS (
+    SELECT
+        x.wallet_id,
+        SUM(x.trade_count) AS trade_count,
+        SUM(x.trading_pnl) AS trading_pnl,
+        SUM(x.maker_rebates) AS maker_rebates
+    FROM (
+        SELECT wallet_id, trade_count, trading_pnl, 0::numeric AS maker_rebates FROM taker
+        UNION ALL
+        SELECT wallet_id, trade_count, 0::numeric AS trading_pnl, maker_rebates FROM maker
+    ) x
+    GROUP BY x.wallet_id
+),
+latest_score AS (
+    SELECT DISTINCT ON (wallet_id)
+        wallet_id, smart_score, info_edge_level, strategy_type
+    FROM wallet_score
+    ORDER BY wallet_id, scored_at DESC
+),
+latest_ai AS (
+    SELECT wallet_id, MAX(created_at) AS last_analyzed_at
+    FROM ai_analysis_report
+    GROUP BY wallet_id
+)
+SELECT
+    w.id AS wallet_id,
+    w.address AS address,
+    w.pseudonym AS pseudonym,
+    w.is_tracked AS is_tracked,
+    m.trade_count AS trade_count,
+    m.trading_pnl AS trading_pnl,
+    m.maker_rebates AS maker_rebates,
+    (m.trading_pnl + m.maker_rebates) AS realized_pnl,
+    COALESCE(s.smart_score, 0) AS smart_score,
+    COALESCE(s.info_edge_level, 'unknown') AS info_edge_level,
+    COALESCE(s.strategy_type, 'unknown') AS strategy_type,
+    a.last_analyzed_at
+FROM merged m
+JOIN wallet w ON w.id = m.wallet_id
+LEFT JOIN latest_score s ON s.wallet_id = w.id
+LEFT JOIN latest_ai a ON a.wallet_id = w.id
+WHERE m.trade_count >= ? AND (m.trading_pnl + m.maker_rebates) > ?
+ORDER BY m.trade_count DESC, realized_pnl DESC, smart_score DESC, w.id ASC
+LIMIT ? OFFSET ?`, minTrades, minRealizedPnL, limit, offset).Scan(&rows).Error
+	return rows, err
 }
 
 func (r *WalletRepository) EnsureByAddress(ctx context.Context, addressHex string) (*model.Wallet, error) {

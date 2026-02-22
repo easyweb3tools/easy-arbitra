@@ -70,7 +70,7 @@ func (r *AnomalyRepository) ExistsRecent(ctx context.Context, walletID int64, al
 	}
 	var count int64
 	err := r.db.WithContext(ctx).Model(&model.AnomalyAlert{}).
-		Where("wallet_id = ? AND alert_type = ? AND created_at > NOW() - (? || ' hours')::interval", walletID, alertType, lookbackHours).
+		Where("wallet_id = ? AND alert_type = ? AND created_at > NOW() - make_interval(hours => ?)", walletID, alertType, lookbackHours).
 		Count(&count).Error
 	return count > 0, err
 }

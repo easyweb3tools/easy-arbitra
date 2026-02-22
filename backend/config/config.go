@@ -41,7 +41,10 @@ type LoggerConfig struct {
 
 type NovaConfig struct {
 	Enabled            bool          `mapstructure:"enabled"`
+	Provider           string        `mapstructure:"provider"`
 	Region             string        `mapstructure:"region"`
+	APIBaseURL         string        `mapstructure:"api_base_url"`
+	APIKey             string        `mapstructure:"api_key"`
 	AnalysisModel      string        `mapstructure:"analysis_model"`
 	MaxTokens          int           `mapstructure:"max_tokens"`
 	Temperature        float32       `mapstructure:"temperature"`
@@ -55,17 +58,30 @@ type PolymarketConfig struct {
 }
 
 type WorkerConfig struct {
-	Enabled                  bool          `mapstructure:"enabled"`
-	MarketSyncerInterval     time.Duration `mapstructure:"market_syncer_interval"`
-	TradeSyncerInterval      time.Duration `mapstructure:"trade_syncer_interval"`
-	OffchainSyncerInterval   time.Duration `mapstructure:"offchain_event_syncer_interval"`
-	FeatureBuilderInterval   time.Duration `mapstructure:"feature_builder_interval"`
-	ScoreCalculatorInterval  time.Duration `mapstructure:"score_calculator_interval"`
-	AnomalyDetectorInterval  time.Duration `mapstructure:"anomaly_detector_interval"`
-	RunOnStartup             bool          `mapstructure:"run_on_startup"`
-	MaxTradesPerSync         int           `mapstructure:"max_trades_per_sync"`
-	MaxMarketsPerSync        int           `mapstructure:"max_markets_per_sync"`
-	MaxOffchainEventsPerSync int           `mapstructure:"max_offchain_events_per_sync"`
+	Enabled                     bool          `mapstructure:"enabled"`
+	MarketSyncerInterval        time.Duration `mapstructure:"market_syncer_interval"`
+	TradeSyncerInterval         time.Duration `mapstructure:"trade_syncer_interval"`
+	TradeBackfillSyncerInterval time.Duration `mapstructure:"trade_backfill_syncer_interval"`
+	OffchainSyncerInterval      time.Duration `mapstructure:"offchain_event_syncer_interval"`
+	FeatureBuilderInterval      time.Duration `mapstructure:"feature_builder_interval"`
+	ScoreCalculatorInterval     time.Duration `mapstructure:"score_calculator_interval"`
+	AnomalyDetectorInterval     time.Duration `mapstructure:"anomaly_detector_interval"`
+	RunOnStartup                bool          `mapstructure:"run_on_startup"`
+	MaxTradesPerSync            int           `mapstructure:"max_trades_per_sync"`
+	BackfillWalletsPerSync      int           `mapstructure:"backfill_wallets_per_sync"`
+	BackfillPagesPerWallet      int           `mapstructure:"backfill_pages_per_wallet"`
+	BackfillPageSize            int           `mapstructure:"backfill_page_size"`
+	BackfillConcurrency         int           `mapstructure:"backfill_concurrency"`
+	BackfillTargetMinTrades     int64         `mapstructure:"backfill_target_min_trades"`
+	AIBatchEnabled              bool          `mapstructure:"ai_batch_enabled"`
+	AIBatchAnalyzerInterval     time.Duration `mapstructure:"ai_batch_analyzer_interval"`
+	AIBatchSize                 int           `mapstructure:"ai_batch_size"`
+	AIBatchCooldown             time.Duration `mapstructure:"ai_batch_cooldown"`
+	AIBatchRequestSpacing       time.Duration `mapstructure:"ai_batch_request_spacing"`
+	AIBatchMinTrades            int64         `mapstructure:"ai_batch_min_trades"`
+	AIBatchMinRealizedPnL       float64       `mapstructure:"ai_batch_min_realized_pnl"`
+	MaxMarketsPerSync           int           `mapstructure:"max_markets_per_sync"`
+	MaxOffchainEventsPerSync    int           `mapstructure:"max_offchain_events_per_sync"`
 }
 
 func Load(path string) (*Config, error) {
@@ -84,8 +100,11 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("logger.level", "info")
 	v.SetDefault("logger.format", "json")
 	v.SetDefault("nova.enabled", false)
+	v.SetDefault("nova.provider", "devapi")
 	v.SetDefault("nova.region", "us-east-1")
-	v.SetDefault("nova.analysis_model", "us.amazon.nova-2-lite-v1:0")
+	v.SetDefault("nova.api_base_url", "https://api.nova.amazon.com/v1")
+	v.SetDefault("nova.api_key", "")
+	v.SetDefault("nova.analysis_model", "nova-pro-v1")
 	v.SetDefault("nova.max_tokens", 2048)
 	v.SetDefault("nova.temperature", 0.0)
 	v.SetDefault("nova.analysis_cache_hours", "24h")
@@ -95,12 +114,25 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("worker.enabled", false)
 	v.SetDefault("worker.market_syncer_interval", "10m")
 	v.SetDefault("worker.trade_syncer_interval", "5m")
+	v.SetDefault("worker.trade_backfill_syncer_interval", "5m")
 	v.SetDefault("worker.offchain_event_syncer_interval", "15m")
 	v.SetDefault("worker.feature_builder_interval", "30m")
 	v.SetDefault("worker.score_calculator_interval", "1h")
 	v.SetDefault("worker.anomaly_detector_interval", "10m")
 	v.SetDefault("worker.run_on_startup", true)
 	v.SetDefault("worker.max_trades_per_sync", 200)
+	v.SetDefault("worker.backfill_wallets_per_sync", 100)
+	v.SetDefault("worker.backfill_pages_per_wallet", 5)
+	v.SetDefault("worker.backfill_page_size", 200)
+	v.SetDefault("worker.backfill_concurrency", 16)
+	v.SetDefault("worker.backfill_target_min_trades", 100)
+	v.SetDefault("worker.ai_batch_enabled", true)
+	v.SetDefault("worker.ai_batch_analyzer_interval", "10m")
+	v.SetDefault("worker.ai_batch_size", 3)
+	v.SetDefault("worker.ai_batch_cooldown", "24h")
+	v.SetDefault("worker.ai_batch_request_spacing", "25s")
+	v.SetDefault("worker.ai_batch_min_trades", 100)
+	v.SetDefault("worker.ai_batch_min_realized_pnl", 0.0)
 	v.SetDefault("worker.max_markets_per_sync", 100)
 	v.SetDefault("worker.max_offchain_events_per_sync", 50)
 
@@ -130,7 +162,10 @@ func Load(path string) (*Config, error) {
 	cfg.Logger.Format = v.GetString("logger.format")
 
 	cfg.Nova.Enabled = v.GetBool("nova.enabled")
+	cfg.Nova.Provider = v.GetString("nova.provider")
 	cfg.Nova.Region = v.GetString("nova.region")
+	cfg.Nova.APIBaseURL = v.GetString("nova.api_base_url")
+	cfg.Nova.APIKey = v.GetString("nova.api_key")
 	cfg.Nova.AnalysisModel = v.GetString("nova.analysis_model")
 	cfg.Nova.MaxTokens = v.GetInt("nova.max_tokens")
 	cfg.Nova.Temperature = float32(v.GetFloat64("nova.temperature"))
@@ -143,12 +178,25 @@ func Load(path string) (*Config, error) {
 	cfg.Worker.Enabled = v.GetBool("worker.enabled")
 	cfg.Worker.MarketSyncerInterval = v.GetDuration("worker.market_syncer_interval")
 	cfg.Worker.TradeSyncerInterval = v.GetDuration("worker.trade_syncer_interval")
+	cfg.Worker.TradeBackfillSyncerInterval = v.GetDuration("worker.trade_backfill_syncer_interval")
 	cfg.Worker.OffchainSyncerInterval = v.GetDuration("worker.offchain_event_syncer_interval")
 	cfg.Worker.FeatureBuilderInterval = v.GetDuration("worker.feature_builder_interval")
 	cfg.Worker.ScoreCalculatorInterval = v.GetDuration("worker.score_calculator_interval")
 	cfg.Worker.AnomalyDetectorInterval = v.GetDuration("worker.anomaly_detector_interval")
 	cfg.Worker.RunOnStartup = v.GetBool("worker.run_on_startup")
 	cfg.Worker.MaxTradesPerSync = v.GetInt("worker.max_trades_per_sync")
+	cfg.Worker.BackfillWalletsPerSync = v.GetInt("worker.backfill_wallets_per_sync")
+	cfg.Worker.BackfillPagesPerWallet = v.GetInt("worker.backfill_pages_per_wallet")
+	cfg.Worker.BackfillPageSize = v.GetInt("worker.backfill_page_size")
+	cfg.Worker.BackfillConcurrency = v.GetInt("worker.backfill_concurrency")
+	cfg.Worker.BackfillTargetMinTrades = int64(v.GetInt("worker.backfill_target_min_trades"))
+	cfg.Worker.AIBatchEnabled = v.GetBool("worker.ai_batch_enabled")
+	cfg.Worker.AIBatchAnalyzerInterval = v.GetDuration("worker.ai_batch_analyzer_interval")
+	cfg.Worker.AIBatchSize = v.GetInt("worker.ai_batch_size")
+	cfg.Worker.AIBatchCooldown = v.GetDuration("worker.ai_batch_cooldown")
+	cfg.Worker.AIBatchRequestSpacing = v.GetDuration("worker.ai_batch_request_spacing")
+	cfg.Worker.AIBatchMinTrades = int64(v.GetInt("worker.ai_batch_min_trades"))
+	cfg.Worker.AIBatchMinRealizedPnL = v.GetFloat64("worker.ai_batch_min_realized_pnl")
 	cfg.Worker.MaxMarketsPerSync = v.GetInt("worker.max_markets_per_sync")
 	cfg.Worker.MaxOffchainEventsPerSync = v.GetInt("worker.max_offchain_events_per_sync")
 

@@ -110,14 +110,22 @@ func main() {
 		dataClient := client.NewDataAPIClient(cfg.Polymarket.DataAPIURL, cfg.Polymarket.RequestTO)
 		offchainClient := client.NewOffchainClient()
 
-		mgr := worker.NewManager(lg,
+		jobs := []worker.ScheduledSyncer{
 			worker.ScheduledSyncer{Syncer: worker.NewMarketSyncer(gammaClient, marketRepo, cfg.Worker.MaxMarketsPerSync), Interval: cfg.Worker.MarketSyncerInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewTradeSyncer(dataClient, walletRepo, marketRepo, tokenRepo, tradeRepo, cfg.Worker.MaxTradesPerSync), Interval: cfg.Worker.TradeSyncerInterval},
+			worker.ScheduledSyncer{Syncer: worker.NewTradeBackfillSyncer(dataClient, walletRepo, marketRepo, tokenRepo, tradeRepo, cfg.Worker.BackfillWalletsPerSync, cfg.Worker.BackfillPagesPerWallet, cfg.Worker.BackfillPageSize, cfg.Worker.BackfillConcurrency, cfg.Worker.BackfillTargetMinTrades), Interval: cfg.Worker.TradeBackfillSyncerInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewOffchainEventSyncer(offchainClient, cfg.Worker.MaxOffchainEventsPerSync), Interval: cfg.Worker.OffchainSyncerInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewFeatureBuilder(featureRepo), Interval: cfg.Worker.FeatureBuilderInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewScoreCalculator(walletRepo, classifier), Interval: cfg.Worker.ScoreCalculatorInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewAnomalyDetector(anomalyService), Interval: cfg.Worker.AnomalyDetectorInterval},
-		)
+		}
+		if cfg.Worker.AIBatchEnabled {
+			jobs = append(jobs, worker.ScheduledSyncer{
+				Syncer:   worker.NewAIBatchAnalyzer(aiService, walletRepo, cfg.Worker.AIBatchSize, cfg.Worker.AIBatchMinTrades, cfg.Worker.AIBatchMinRealizedPnL, cfg.Worker.AIBatchCooldown, cfg.Worker.AIBatchRequestSpacing),
+				Interval: cfg.Worker.AIBatchAnalyzerInterval,
+			})
+		}
+		mgr := worker.NewManager(lg, jobs...)
 		mgr.Start(ctx, cfg.Worker.RunOnStartup)
 	}
 

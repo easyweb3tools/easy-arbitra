@@ -5,6 +5,19 @@ export type Wallet = {
   tracked: boolean;
 };
 
+export type PotentialWallet = {
+  wallet: Wallet;
+  total_trades: number;
+  trading_pnl: number;
+  maker_rebates: number;
+  realized_pnl: number;
+  smart_score: number;
+  info_edge_level: string;
+  strategy_type: string;
+  has_ai_report: boolean;
+  last_analyzed_at?: string;
+};
+
 export type Market = {
   id: number;
   condition_id: string;

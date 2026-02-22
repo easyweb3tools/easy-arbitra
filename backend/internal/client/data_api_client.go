@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -54,6 +55,25 @@ func (c *DataAPIClient) FetchTrades(ctx context.Context, limit int) ([]TradeDTO,
 	rows, err := decodeTrades(raw)
 	if err != nil {
 		return nil, fmt.Errorf("decode trades: %w", err)
+	}
+	return rows, nil
+}
+
+func (c *DataAPIClient) FetchTradesByUser(ctx context.Context, user string, limit int, offset int) ([]TradeDTO, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	qUser := url.QueryEscape(user)
+	var raw json.RawMessage
+	if err := c.http.GetJSON(ctx, fmt.Sprintf("/trades?user=%s&limit=%d&offset=%d", qUser, limit, offset), &raw); err != nil {
+		return nil, err
+	}
+	rows, err := decodeTrades(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode user trades: %w", err)
 	}
 	return rows, nil
 }

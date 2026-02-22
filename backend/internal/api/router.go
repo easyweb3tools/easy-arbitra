@@ -21,6 +21,7 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/wallets", h.ListWallets)
+		v1.GET("/wallets/potential", h.ListPotentialWallets)
 		v1.GET("/wallets/:id", h.GetWallet)
 		v1.GET("/wallets/:id/profile", h.GetWalletProfile)
 		v1.GET("/wallets/:id/explanations", h.GetWalletExplanations)

@@ -16,6 +16,8 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrInsufficientTrades = errors.New("wallet has fewer than 100 trades")
+var ErrNonPositivePnL = errors.New("wallet pnl is not positive")
 
 type WalletService struct {
 	walletRepo *repository.WalletRepository
@@ -58,6 +60,13 @@ type WalletListQuery struct {
 	Search   string
 }
 
+type PotentialWalletListQuery struct {
+	Page           int
+	PageSize       int
+	MinTrades      int64
+	MinRealizedPnL float64
+}
+
 type MarketListQuery struct {
 	Page     int
 	PageSize int
@@ -70,6 +79,24 @@ type MarketListQuery struct {
 type WalletListResult struct {
 	Items      []WalletView `json:"items"`
 	Pagination Pagination   `json:"pagination"`
+}
+
+type PotentialWalletView struct {
+	Wallet         WalletView `json:"wallet"`
+	TotalTrades    int64      `json:"total_trades"`
+	TradingPnL     float64    `json:"trading_pnl"`
+	MakerRebates   float64    `json:"maker_rebates"`
+	RealizedPnL    float64    `json:"realized_pnl"`
+	SmartScore     int        `json:"smart_score"`
+	InfoEdgeLevel  string     `json:"info_edge_level"`
+	StrategyType   string     `json:"strategy_type"`
+	HasAIReport    bool       `json:"has_ai_report"`
+	LastAnalyzedAt *string    `json:"last_analyzed_at,omitempty"`
+}
+
+type PotentialWalletListResult struct {
+	Items      []PotentialWalletView `json:"items"`
+	Pagination Pagination            `json:"pagination"`
 }
 
 type MarketListResult struct {
@@ -204,6 +231,62 @@ func (s *WalletService) GetByID(ctx context.Context, id int64) (*WalletView, err
 	return &view, nil
 }
 
+func (s *WalletService) ListPotential(ctx context.Context, q PotentialWalletListQuery) (*PotentialWalletListResult, error) {
+	if q.Page <= 0 {
+		q.Page = 1
+	}
+	if q.PageSize <= 0 {
+		q.PageSize = 20
+	}
+	if q.PageSize > 200 {
+		q.PageSize = 200
+	}
+	if q.MinTrades <= 0 {
+		q.MinTrades = 100
+	}
+	total, err := s.walletRepo.CountPotentialWallets(ctx, q.MinTrades, q.MinRealizedPnL)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.walletRepo.ListPotentialWallets(ctx, q.MinTrades, q.MinRealizedPnL, q.PageSize, (q.Page-1)*q.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]PotentialWalletView, 0, len(rows))
+	for _, row := range rows {
+		var analyzedAt *string
+		if row.LastAnalyzedAt != nil {
+			v := row.LastAnalyzedAt.UTC().Format(time.RFC3339)
+			analyzedAt = &v
+		}
+		items = append(items, PotentialWalletView{
+			Wallet: WalletView{
+				ID:        row.WalletID,
+				Address:   polyaddr.BytesToHex(row.Address),
+				Pseudonym: row.Pseudonym,
+				Tracked:   row.IsTracked,
+			},
+			TotalTrades:    row.TradeCount,
+			TradingPnL:     row.TradingPnL,
+			MakerRebates:   row.MakerRebates,
+			RealizedPnL:    row.RealizedPnL,
+			SmartScore:     row.SmartScore,
+			InfoEdgeLevel:  row.InfoEdgeLevel,
+			StrategyType:   row.StrategyType,
+			HasAIReport:    row.LastAnalyzedAt != nil,
+			LastAnalyzedAt: analyzedAt,
+		})
+	}
+	return &PotentialWalletListResult{
+		Items: items,
+		Pagination: Pagination{
+			Page:     q.Page,
+			PageSize: q.PageSize,
+			Total:    total,
+		},
+	}, nil
+}
+
 func (s *WalletService) GetProfile(ctx context.Context, id int64) (*WalletProfile, error) {
 	wallet, err := s.walletRepo.GetByID(ctx, id)
 	if err != nil {
@@ -335,8 +418,8 @@ func (s *StatsService) Leaderboard(ctx context.Context, q LeaderboardQuery) (*Le
 	}, nil
 }
 
-func (s *AIService) AnalyzeByWalletID(ctx context.Context, walletID int64) (*model.AIAnalysisReport, error) {
-	if s.cacheTTL > 0 {
+func (s *AIService) AnalyzeByWalletID(ctx context.Context, walletID int64, force bool) (*model.AIAnalysisReport, error) {
+	if !force && s.cacheTTL > 0 {
 		latest, err := s.aiReportRepo.LatestByWalletID(ctx, walletID)
 		if err == nil && time.Since(latest.CreatedAt) <= s.cacheTTL {
 			return latest, nil
@@ -367,15 +450,24 @@ func (s *AIService) AnalyzeByWalletID(ctx context.Context, walletID int64) (*mod
 		SmartScore:    0,
 		InfoEdgeLevel: "luck",
 	}
+	var pnl *repository.WalletPnLSummary
 	if s.tradeRepo != nil {
-		pnl, err := s.tradeRepo.AggregateByWalletID(ctx, walletID)
-		if err == nil {
-			in.TradingPnL = pnl.TradingPnL
-			in.MakerRebates = pnl.MakerRebates
-			in.FeesPaid = pnl.FeesPaid
-			in.TotalTrades = pnl.TotalTrades
-			in.Volume30D = pnl.Volume30D
+		pnl, err = s.tradeRepo.AggregateByWalletID(ctx, walletID)
+		if err != nil {
+			return nil, err
 		}
+		in.TradingPnL = pnl.TradingPnL
+		in.MakerRebates = pnl.MakerRebates
+		in.FeesPaid = pnl.FeesPaid
+		in.TotalTrades = pnl.TotalTrades
+		in.Volume30D = pnl.Volume30D
+	}
+	if pnl == nil || pnl.TotalTrades < 100 {
+		return nil, ErrInsufficientTrades
+	}
+	realizedPnL := pnl.TradingPnL + pnl.MakerRebates
+	if realizedPnL <= 0 {
+		return nil, ErrNonPositivePnL
 	}
 	if score != nil {
 		in.StrategyType = score.StrategyType

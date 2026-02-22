@@ -6,12 +6,16 @@ import {
   Market,
   OverviewStats,
   Paged,
+  PotentialWallet,
   Wallet,
   WalletExplanation,
   WalletProfile
 } from "@/lib/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
+const API_BASE =
+  typeof window === "undefined"
+    ? process.env.API_SERVER_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://backend:8080/api/v1"
+    : process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
@@ -25,6 +29,11 @@ async function getJSON<T>(path: string): Promise<T> {
 export function getWallets(params: URLSearchParams) {
   const q = params.toString();
   return getJSON<Paged<Wallet>>(`/wallets${q ? `?${q}` : ""}`);
+}
+
+export function getPotentialWallets(params: URLSearchParams) {
+  const q = params.toString();
+  return getJSON<Paged<PotentialWallet>>(`/wallets/potential${q ? `?${q}` : ""}`);
 }
 
 export function getWalletProfile(id: string) {

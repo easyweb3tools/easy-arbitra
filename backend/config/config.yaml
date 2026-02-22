@@ -19,8 +19,11 @@ logger:
 
 nova:
   enabled: false
+  provider: devapi
   region: us-east-1
-  analysis_model: us.amazon.nova-2-lite-v1:0
+  api_base_url: https://api.nova.amazon.com/v1
+  api_key: ${NOVA_API_KEY}
+  analysis_model: nova-pro-v1
   max_tokens: 4096
   temperature: 0.0
   analysis_cache_hours: 24h
@@ -34,11 +37,24 @@ worker:
   enabled: true
   market_syncer_interval: 10m
   trade_syncer_interval: 5m
+  trade_backfill_syncer_interval: 5m
   offchain_event_syncer_interval: 15m
   feature_builder_interval: 30m
   score_calculator_interval: 1h
   anomaly_detector_interval: 10m
   run_on_startup: true
   max_trades_per_sync: 200
+  backfill_wallets_per_sync: 100
+  backfill_pages_per_wallet: 5
+  backfill_page_size: 200
+  backfill_concurrency: 16
+  backfill_target_min_trades: 100
+  ai_batch_enabled: true
+  ai_batch_analyzer_interval: 10m
+  ai_batch_size: 3
+  ai_batch_cooldown: 24h
+  ai_batch_request_spacing: 25s
+  ai_batch_min_trades: 100
+  ai_batch_min_realized_pnl: 0
   max_markets_per_sync: 100
   max_offchain_events_per_sync: 50

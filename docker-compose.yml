@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-easy_arbitra}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -36,9 +34,33 @@ services:
       WORKER_ENABLED: "true"
       LOGGER_LEVEL: info
       LOGGER_FORMAT: console
+      NOVA_ENABLED: ${NOVA_ENABLED:-false}
+      NOVA_PROVIDER: ${NOVA_PROVIDER:-devapi}
+      NOVA_REGION: ${NOVA_REGION:-us-east-1}
+      NOVA_API_BASE_URL: ${NOVA_API_BASE_URL:-https://api.nova.amazon.com/v1}
+      NOVA_API_KEY: ${NOVA_API_KEY:-}
+      NOVA_ANALYSIS_MODEL: ${NOVA_ANALYSIS_MODEL:-nova-pro-v1}
+      NOVA_MAX_TOKENS: ${NOVA_MAX_TOKENS:-2048}
+      NOVA_TEMPERATURE: ${NOVA_TEMPERATURE:-0.0}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       POLYMARKET_GAMMA_API_URL: https://gamma-api.polymarket.com
       POLYMARKET_DATA_API_URL: https://data-api.polymarket.com
       WORKER_RUN_ON_STARTUP: "true"
+      WORKER_TRADE_BACKFILL_SYNCER_INTERVAL: ${WORKER_TRADE_BACKFILL_SYNCER_INTERVAL:-5m}
+      WORKER_BACKFILL_WALLETS_PER_SYNC: ${WORKER_BACKFILL_WALLETS_PER_SYNC:-100}
+      WORKER_BACKFILL_PAGES_PER_WALLET: ${WORKER_BACKFILL_PAGES_PER_WALLET:-5}
+      WORKER_BACKFILL_PAGE_SIZE: ${WORKER_BACKFILL_PAGE_SIZE:-200}
+      WORKER_BACKFILL_CONCURRENCY: ${WORKER_BACKFILL_CONCURRENCY:-16}
+      WORKER_BACKFILL_TARGET_MIN_TRADES: ${WORKER_BACKFILL_TARGET_MIN_TRADES:-100}
+      WORKER_AI_BATCH_ENABLED: ${WORKER_AI_BATCH_ENABLED:-true}
+      WORKER_AI_BATCH_ANALYZER_INTERVAL: ${WORKER_AI_BATCH_ANALYZER_INTERVAL:-10m}
+      WORKER_AI_BATCH_SIZE: ${WORKER_AI_BATCH_SIZE:-3}
+      WORKER_AI_BATCH_COOLDOWN: ${WORKER_AI_BATCH_COOLDOWN:-24h}
+      WORKER_AI_BATCH_REQUEST_SPACING: ${WORKER_AI_BATCH_REQUEST_SPACING:-25s}
+      WORKER_AI_BATCH_MIN_TRADES: ${WORKER_AI_BATCH_MIN_TRADES:-100}
+      WORKER_AI_BATCH_MIN_REALIZED_PNL: ${WORKER_AI_BATCH_MIN_REALIZED_PNL:-0}
     ports:
       - "8080:8080"
     volumes:
@@ -54,14 +76,25 @@ services:
     container_name: easy-arbitra-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://backend:8080/api/v1
-    ports:
-      - "3000:3000"
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      API_SERVER_BASE_URL: http://backend:8080/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
     depends_on:
+      - backend
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: easy-arbitra-nginx
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./ops/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
       - backend
 
 volumes:

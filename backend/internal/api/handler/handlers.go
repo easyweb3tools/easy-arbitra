@@ -88,6 +88,28 @@ func (h *Handlers) GetWallet(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func (h *Handlers) ListPotentialWallets(c *gin.Context) {
+	page, pageSize := parsePaging(c)
+	minTrades := int64(parsePositiveInt(c.DefaultQuery("min_trades", "100"), 100))
+	minRealizedPnL, err := strconv.ParseFloat(strings.TrimSpace(c.DefaultQuery("min_realized_pnl", "0")), 64)
+	if err != nil {
+		response.BadRequest(c, "invalid min_realized_pnl")
+		return
+	}
+
+	rows, err := h.walletService.ListPotential(c.Request.Context(), service.PotentialWalletListQuery{
+		Page:           page,
+		PageSize:       pageSize,
+		MinTrades:      minTrades,
+		MinRealizedPnL: minRealizedPnL,
+	})
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
 func (h *Handlers) GetWalletProfile(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -263,10 +285,23 @@ func (h *Handlers) TriggerAIAnalysis(c *gin.Context) {
 		response.BadRequest(c, "invalid wallet id")
 		return
 	}
-	report, err := h.aiService.AnalyzeByWalletID(c.Request.Context(), walletID)
+	force := false
+	if raw := strings.TrimSpace(c.Query("force")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			response.BadRequest(c, "invalid force query")
+			return
+		}
+		force = parsed
+	}
+	report, err := h.aiService.AnalyzeByWalletID(c.Request.Context(), walletID, force)
 	if err != nil {
 		if err == service.ErrNotFound {
 			response.NotFound(c, "wallet not found")
+			return
+		}
+		if err == service.ErrInsufficientTrades || err == service.ErrNonPositivePnL {
+			response.BadRequest(c, err.Error())
 			return
 		}
 		response.Internal(c, err.Error())
