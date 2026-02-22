@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,14 +12,15 @@ import (
 )
 
 type Handlers struct {
-	walletService  *service.WalletService
-	marketService  *service.MarketService
-	statsService   *service.StatsService
-	anomalyService *service.AnomalyService
-	explainService *service.ExplanationService
-	infoEdge       *service.InfoEdgeService
-	aiService      *service.AIService
-	readyCheck     func(*gin.Context) error
+	walletService    *service.WalletService
+	marketService    *service.MarketService
+	statsService     *service.StatsService
+	anomalyService   *service.AnomalyService
+	explainService   *service.ExplanationService
+	infoEdge         *service.InfoEdgeService
+	aiService        *service.AIService
+	watchlistService *service.WatchlistService
+	readyCheck       func(*gin.Context) error
 }
 
 func New(
@@ -29,11 +31,12 @@ func New(
 	explainService *service.ExplanationService,
 	infoEdge *service.InfoEdgeService,
 	aiService *service.AIService,
+	watchlistService *service.WatchlistService,
 	readyCheck func(*gin.Context) error,
 ) *Handlers {
 	return &Handlers{
 		walletService: walletService, marketService: marketService, statsService: statsService, anomalyService: anomalyService,
-		explainService: explainService, infoEdge: infoEdge, aiService: aiService, readyCheck: readyCheck,
+		explainService: explainService, infoEdge: infoEdge, aiService: aiService, watchlistService: watchlistService, readyCheck: readyCheck,
 	}
 }
 
@@ -374,6 +377,71 @@ func (h *Handlers) ListAIReports(c *gin.Context) {
 	response.OK(c, rows)
 }
 
+func (h *Handlers) AddToWatchlist(c *gin.Context) {
+	var req struct {
+		WalletID int64 `json:"wallet_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid body")
+		return
+	}
+	if req.WalletID <= 0 {
+		response.BadRequest(c, "wallet_id is required")
+		return
+	}
+	if err := h.watchlistService.AddByWalletID(c.Request.Context(), req.WalletID, userFingerprint(c)); err != nil {
+		if err == service.ErrNotFound {
+			response.NotFound(c, "wallet not found")
+			return
+		}
+		response.Internal(c, err.Error())
+		return
+	}
+	response.Created(c, gin.H{"wallet_id": req.WalletID, "watching": true})
+}
+
+func (h *Handlers) RemoveFromWatchlist(c *gin.Context) {
+	walletID, err := strconv.ParseInt(c.Param("wallet_id"), 10, 64)
+	if err != nil || walletID <= 0 {
+		response.BadRequest(c, "invalid wallet id")
+		return
+	}
+	if err := h.watchlistService.RemoveByWalletID(c.Request.Context(), walletID, userFingerprint(c)); err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"wallet_id": walletID, "watching": false})
+}
+
+func (h *Handlers) ListWatchlist(c *gin.Context) {
+	page, pageSize := parsePaging(c)
+	rows, err := h.watchlistService.List(c.Request.Context(), service.WatchlistListQuery{
+		Page:            page,
+		PageSize:        pageSize,
+		UserFingerprint: userFingerprint(c),
+	})
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
+func (h *Handlers) GetWatchlistFeed(c *gin.Context) {
+	page, pageSize := parsePaging(c)
+	rows, err := h.watchlistService.Feed(c.Request.Context(), service.WatchlistFeedQuery{
+		Page:            page,
+		PageSize:        pageSize,
+		UserFingerprint: userFingerprint(c),
+		EventType:       strings.TrimSpace(c.Query("type")),
+	})
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
 func parsePaging(c *gin.Context) (int, int) {
 	page := parsePositiveInt(c.DefaultQuery("page", "1"), 1)
 	pageSize := parsePositiveInt(c.DefaultQuery("page_size", "20"), 20)
@@ -412,4 +480,21 @@ func parseInt16Ptr(input string) *int16 {
 	}
 	val := int16(v)
 	return &val
+}
+
+func userFingerprint(c *gin.Context) string {
+	if v := strings.TrimSpace(c.GetHeader("X-User-Fingerprint")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(c.Query("fingerprint")); v != "" {
+		return v
+	}
+	if cookie, err := c.Cookie("user_fingerprint"); err == nil && strings.TrimSpace(cookie) != "" {
+		return strings.TrimSpace(cookie)
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(c.Request.RemoteAddr))
+	if err == nil && host != "" {
+		return host
+	}
+	return strings.TrimSpace(c.Request.RemoteAddr)
 }

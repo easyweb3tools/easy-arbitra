@@ -70,6 +70,8 @@ func main() {
 			&model.WalletScore{},
 			&model.AIAnalysisReport{},
 			&model.AnomalyAlert{},
+			&model.Watchlist{},
+			&model.WalletUpdateEvent{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
@@ -83,6 +85,7 @@ func main() {
 	scoreRepo := repository.NewScoreRepository(db)
 	anomalyRepo := repository.NewAnomalyRepository(db)
 	aiReportRepo := repository.NewAIReportRepository(db)
+	watchlistRepo := repository.NewWatchlistRepository(db)
 
 	infoEdgeService := service.NewInfoEdgeService(tradeRepo)
 	walletService := service.NewWalletService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, infoEdgeService)
@@ -90,12 +93,13 @@ func main() {
 	statsService := service.NewStatsService(walletRepo, marketRepo, scoreRepo)
 	anomalyService := service.NewAnomalyService(anomalyRepo, walletRepo, tradeRepo, infoEdgeService)
 	explainService := service.NewExplanationService(walletRepo, featureRepo, scoreRepo, tradeRepo, infoEdgeService)
+	watchlistService := service.NewWatchlistService(walletRepo, watchlistRepo)
 	classifier := service.NewClassificationService(featureRepo, scoreRepo)
 	analyzer := ai.NewAnalyzer(cfg.Nova, lg)
-	aiService := service.NewAIService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, analyzer, cfg.Nova.AnalysisCacheHours)
+	aiService := service.NewAIService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, watchlistRepo, analyzer, cfg.Nova.AnalysisCacheHours)
 
 	h := handler.New(
-		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService,
+		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService,
 		func(c *gin.Context) error {
 			return sqlDB.PingContext(c.Request.Context())
 		},

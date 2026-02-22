@@ -58,6 +58,7 @@ export type AIReport = {
   model_id: string;
   report: unknown;
   nl_summary: string;
+  risk_warnings?: string[];
   input_tokens: number;
   output_tokens: number;
   latency_ms: number;
@@ -148,6 +149,29 @@ export type OpsHighlights = {
   new_potential_wallets_24h: number;
   top_realized_pnl_24h: OpsTopRealizedWallet[];
   top_ai_confidence: OpsTopAIConfidenceWallet[];
+};
+
+export type WatchlistItem = {
+  watchlist_id: number;
+  watchlisted_at: string;
+  wallet: Wallet;
+  total_trades: number;
+  trading_pnl: number;
+  maker_rebates: number;
+  realized_pnl: number;
+  smart_score: number;
+  info_edge_level: string;
+  strategy_type: string;
+  has_ai_report: boolean;
+  last_analyzed_at?: string;
+};
+
+export type WatchlistFeedItem = {
+  event_id: number;
+  wallet: Wallet;
+  event_type: string;
+  event_payload: Record<string, unknown>;
+  event_time: string;
 };
 
 export type Paged<T> = {

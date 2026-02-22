@@ -67,12 +67,18 @@ type OpsTopAIConfidenceWalletView struct {
 }
 
 type AIService struct {
-	walletRepo   *repository.WalletRepository
-	scoreRepo    *repository.ScoreRepository
-	tradeRepo    *repository.TradeRepository
-	aiReportRepo *repository.AIReportRepository
-	analyzer     ai.Analyzer
-	cacheTTL     time.Duration
+	walletRepo    *repository.WalletRepository
+	scoreRepo     *repository.ScoreRepository
+	tradeRepo     *repository.TradeRepository
+	aiReportRepo  *repository.AIReportRepository
+	watchlistRepo *repository.WatchlistRepository
+	analyzer      ai.Analyzer
+	cacheTTL      time.Duration
+}
+
+type WatchlistService struct {
+	walletRepo    *repository.WalletRepository
+	watchlistRepo *repository.WatchlistRepository
 }
 
 type Pagination struct {
@@ -207,6 +213,52 @@ type LeaderboardResult struct {
 	Pagination Pagination        `json:"pagination"`
 }
 
+type WatchlistListQuery struct {
+	Page            int
+	PageSize        int
+	UserFingerprint string
+}
+
+type WatchlistFeedQuery struct {
+	Page            int
+	PageSize        int
+	UserFingerprint string
+	EventType       string
+}
+
+type WatchlistItem struct {
+	WatchlistID    int64      `json:"watchlist_id"`
+	WatchlistedAt  string     `json:"watchlisted_at"`
+	Wallet         WalletView `json:"wallet"`
+	TotalTrades    int64      `json:"total_trades"`
+	TradingPnL     float64    `json:"trading_pnl"`
+	MakerRebates   float64    `json:"maker_rebates"`
+	RealizedPnL    float64    `json:"realized_pnl"`
+	SmartScore     int        `json:"smart_score"`
+	InfoEdgeLevel  string     `json:"info_edge_level"`
+	StrategyType   string     `json:"strategy_type"`
+	HasAIReport    bool       `json:"has_ai_report"`
+	LastAnalyzedAt *string    `json:"last_analyzed_at,omitempty"`
+}
+
+type WatchlistListResult struct {
+	Items      []WatchlistItem `json:"items"`
+	Pagination Pagination      `json:"pagination"`
+}
+
+type WatchlistFeedItem struct {
+	EventID      int64          `json:"event_id"`
+	Wallet       WalletView     `json:"wallet"`
+	EventType    string         `json:"event_type"`
+	EventPayload map[string]any `json:"event_payload"`
+	EventTime    string         `json:"event_time"`
+}
+
+type WatchlistFeedResult struct {
+	Items      []WatchlistFeedItem `json:"items"`
+	Pagination Pagination          `json:"pagination"`
+}
+
 func NewWalletService(
 	walletRepo *repository.WalletRepository,
 	scoreRepo *repository.ScoreRepository,
@@ -230,10 +282,15 @@ func NewAIService(
 	scoreRepo *repository.ScoreRepository,
 	tradeRepo *repository.TradeRepository,
 	aiReportRepo *repository.AIReportRepository,
+	watchlistRepo *repository.WatchlistRepository,
 	analyzer ai.Analyzer,
 	cacheTTL time.Duration,
 ) *AIService {
-	return &AIService{walletRepo: walletRepo, scoreRepo: scoreRepo, tradeRepo: tradeRepo, aiReportRepo: aiReportRepo, analyzer: analyzer, cacheTTL: cacheTTL}
+	return &AIService{walletRepo: walletRepo, scoreRepo: scoreRepo, tradeRepo: tradeRepo, aiReportRepo: aiReportRepo, watchlistRepo: watchlistRepo, analyzer: analyzer, cacheTTL: cacheTTL}
+}
+
+func NewWatchlistService(walletRepo *repository.WalletRepository, watchlistRepo *repository.WatchlistRepository) *WatchlistService {
+	return &WatchlistService{walletRepo: walletRepo, watchlistRepo: watchlistRepo}
 }
 
 func (s *WalletService) List(ctx context.Context, q WalletListQuery) (*WalletListResult, error) {
@@ -673,6 +730,15 @@ func (s *AIService) AnalyzeByWalletID(ctx context.Context, walletID int64, force
 	if err := s.aiReportRepo.Create(ctx, report); err != nil {
 		return nil, err
 	}
+	if s.watchlistRepo != nil {
+		evt, _ := json.Marshal(map[string]any{
+			"model_id":      report.ModelID,
+			"summary":       report.NLSummary,
+			"input_tokens":  report.InputTokens,
+			"output_tokens": report.OutputTokens,
+		})
+		_ = s.watchlistRepo.CreateUpdateEvent(ctx, walletID, "ai_report", evt)
+	}
 	return report, nil
 }
 
@@ -704,4 +770,131 @@ type WalletView struct {
 
 func walletToView(w model.Wallet) WalletView {
 	return WalletView{ID: w.ID, Address: polyaddr.BytesToHex(w.Address), Pseudonym: w.Pseudonym, Tracked: w.IsTracked}
+}
+
+func (s *WatchlistService) AddByWalletID(ctx context.Context, walletID int64, userFingerprint string) error {
+	userFingerprint = strings.TrimSpace(userFingerprint)
+	if userFingerprint == "" {
+		return errors.New("empty user fingerprint")
+	}
+	if _, err := s.walletRepo.GetByID(ctx, walletID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return s.watchlistRepo.Add(ctx, walletID, userFingerprint)
+}
+
+func (s *WatchlistService) RemoveByWalletID(ctx context.Context, walletID int64, userFingerprint string) error {
+	userFingerprint = strings.TrimSpace(userFingerprint)
+	if userFingerprint == "" {
+		return errors.New("empty user fingerprint")
+	}
+	return s.watchlistRepo.Remove(ctx, walletID, userFingerprint)
+}
+
+func (s *WatchlistService) List(ctx context.Context, q WatchlistListQuery) (*WatchlistListResult, error) {
+	if q.Page <= 0 {
+		q.Page = 1
+	}
+	if q.PageSize <= 0 {
+		q.PageSize = 20
+	}
+	if q.PageSize > 200 {
+		q.PageSize = 200
+	}
+	if strings.TrimSpace(q.UserFingerprint) == "" {
+		return nil, errors.New("empty user fingerprint")
+	}
+	total, err := s.watchlistRepo.CountByUser(ctx, q.UserFingerprint)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.watchlistRepo.ListByUser(ctx, q.UserFingerprint, q.PageSize, (q.Page-1)*q.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]WatchlistItem, 0, len(rows))
+	for _, row := range rows {
+		var analyzedAt *string
+		if row.LastAnalyzedAt != nil {
+			v := row.LastAnalyzedAt.UTC().Format(time.RFC3339)
+			analyzedAt = &v
+		}
+		items = append(items, WatchlistItem{
+			WatchlistID:   row.WatchlistID,
+			WatchlistedAt: row.WatchlistedAt.UTC().Format(time.RFC3339),
+			Wallet: WalletView{
+				ID:        row.WalletID,
+				Address:   polyaddr.BytesToHex(row.Address),
+				Pseudonym: row.Pseudonym,
+				Tracked:   row.IsTracked,
+			},
+			TotalTrades:    row.TradeCount,
+			TradingPnL:     row.TradingPnL,
+			MakerRebates:   row.MakerRebates,
+			RealizedPnL:    row.RealizedPnL,
+			SmartScore:     row.SmartScore,
+			InfoEdgeLevel:  row.InfoEdgeLevel,
+			StrategyType:   row.StrategyType,
+			HasAIReport:    row.LastAnalyzedAt != nil,
+			LastAnalyzedAt: analyzedAt,
+		})
+	}
+	return &WatchlistListResult{
+		Items: items,
+		Pagination: Pagination{
+			Page:     q.Page,
+			PageSize: q.PageSize,
+			Total:    total,
+		},
+	}, nil
+}
+
+func (s *WatchlistService) Feed(ctx context.Context, q WatchlistFeedQuery) (*WatchlistFeedResult, error) {
+	if q.Page <= 0 {
+		q.Page = 1
+	}
+	if q.PageSize <= 0 {
+		q.PageSize = 20
+	}
+	if q.PageSize > 200 {
+		q.PageSize = 200
+	}
+	if strings.TrimSpace(q.UserFingerprint) == "" {
+		return nil, errors.New("empty user fingerprint")
+	}
+	total, err := s.watchlistRepo.CountFeedByUser(ctx, q.UserFingerprint, q.EventType)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.watchlistRepo.ListFeedByUser(ctx, q.UserFingerprint, q.EventType, q.PageSize, (q.Page-1)*q.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]WatchlistFeedItem, 0, len(rows))
+	for _, row := range rows {
+		payload := map[string]any{}
+		_ = json.Unmarshal(row.EventPayload, &payload)
+		items = append(items, WatchlistFeedItem{
+			EventID: row.EventID,
+			Wallet: WalletView{
+				ID:        row.WalletID,
+				Address:   polyaddr.BytesToHex(row.Address),
+				Pseudonym: row.Pseudonym,
+			},
+			EventType:    row.EventType,
+			EventPayload: payload,
+			EventTime:    row.EventTime.UTC().Format(time.RFC3339),
+		})
+	}
+	return &WatchlistFeedResult{
+		Items: items,
+		Pagination: Pagination{
+			Page:     q.Page,
+			PageSize: q.PageSize,
+			Total:    total,
+		},
+	}, nil
 }

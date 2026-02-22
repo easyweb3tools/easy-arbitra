@@ -139,3 +139,22 @@ type AnomalyAlert struct {
 }
 
 func (AnomalyAlert) TableName() string { return "anomaly_alert" }
+
+type Watchlist struct {
+	ID              int64     `gorm:"primaryKey" json:"id"`
+	WalletID        int64     `gorm:"index" json:"wallet_id"`
+	UserFingerprint string    `gorm:"size:120;index:idx_watchlist_wallet_user,unique" json:"user_fingerprint"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+func (Watchlist) TableName() string { return "watchlist" }
+
+type WalletUpdateEvent struct {
+	ID        int64          `gorm:"primaryKey" json:"id"`
+	WalletID  int64          `gorm:"index" json:"wallet_id"`
+	EventType string         `gorm:"size:40;index" json:"event_type"`
+	Payload   datatypes.JSON `gorm:"type:jsonb" json:"payload"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
+func (WalletUpdateEvent) TableName() string { return "wallet_update_event" }

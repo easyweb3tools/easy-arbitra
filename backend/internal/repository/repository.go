@@ -2,12 +2,14 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"easy-arbitra/backend/internal/model"
 	"easy-arbitra/backend/pkg/polyaddr"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -23,6 +25,8 @@ type TradeRepository struct{ db *gorm.DB }
 type ScoreRepository struct{ db *gorm.DB }
 
 type AIReportRepository struct{ db *gorm.DB }
+
+type WatchlistRepository struct{ db *gorm.DB }
 
 type WalletListFilter struct {
 	Tracked *bool
@@ -121,12 +125,42 @@ type OpsTopAIConfidenceRow struct {
 	LastAnalyzedAt *time.Time `gorm:"column:last_analyzed_at"`
 }
 
+type WatchlistWalletRow struct {
+	WatchlistID    int64      `gorm:"column:watchlist_id"`
+	WatchlistedAt  time.Time  `gorm:"column:watchlisted_at"`
+	WalletID       int64      `gorm:"column:wallet_id"`
+	Address        []byte     `gorm:"column:address"`
+	Pseudonym      *string    `gorm:"column:pseudonym"`
+	IsTracked      bool       `gorm:"column:is_tracked"`
+	TradeCount     int64      `gorm:"column:trade_count"`
+	TradingPnL     float64    `gorm:"column:trading_pnl"`
+	MakerRebates   float64    `gorm:"column:maker_rebates"`
+	RealizedPnL    float64    `gorm:"column:realized_pnl"`
+	SmartScore     int        `gorm:"column:smart_score"`
+	InfoEdgeLevel  string     `gorm:"column:info_edge_level"`
+	StrategyType   string     `gorm:"column:strategy_type"`
+	LastAnalyzedAt *time.Time `gorm:"column:last_analyzed_at"`
+}
+
+type WatchlistFeedRow struct {
+	EventID      int64           `gorm:"column:event_id"`
+	WalletID     int64           `gorm:"column:wallet_id"`
+	Address      []byte          `gorm:"column:address"`
+	Pseudonym    *string         `gorm:"column:pseudonym"`
+	EventType    string          `gorm:"column:event_type"`
+	EventPayload json.RawMessage `gorm:"column:event_payload"`
+	EventTime    time.Time       `gorm:"column:event_time"`
+}
+
 func NewWalletRepository(db *gorm.DB) *WalletRepository     { return &WalletRepository{db: db} }
 func NewMarketRepository(db *gorm.DB) *MarketRepository     { return &MarketRepository{db: db} }
 func NewTokenRepository(db *gorm.DB) *TokenRepository       { return &TokenRepository{db: db} }
 func NewTradeRepository(db *gorm.DB) *TradeRepository       { return &TradeRepository{db: db} }
 func NewScoreRepository(db *gorm.DB) *ScoreRepository       { return &ScoreRepository{db: db} }
 func NewAIReportRepository(db *gorm.DB) *AIReportRepository { return &AIReportRepository{db: db} }
+func NewWatchlistRepository(db *gorm.DB) *WatchlistRepository {
+	return &WatchlistRepository{db: db}
+}
 
 func (r *WalletRepository) List(ctx context.Context, f WalletListFilter) ([]model.Wallet, int64, error) {
 	q := r.db.WithContext(ctx).Model(&model.Wallet{})
@@ -916,6 +950,207 @@ func (r *AIReportRepository) ListByWalletID(ctx context.Context, walletID int64,
 	var rows []model.AIAnalysisReport
 	err := r.db.WithContext(ctx).Where("wallet_id = ?", walletID).Order("created_at desc").Limit(limit).Find(&rows).Error
 	return rows, err
+}
+
+func (r *WatchlistRepository) Add(ctx context.Context, walletID int64, userFingerprint string) error {
+	entry := model.Watchlist{
+		WalletID:        walletID,
+		UserFingerprint: strings.TrimSpace(userFingerprint),
+	}
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "wallet_id"}, {Name: "user_fingerprint"}},
+		DoNothing: true,
+	}).Create(&entry).Error
+}
+
+func (r *WatchlistRepository) Remove(ctx context.Context, walletID int64, userFingerprint string) error {
+	return r.db.WithContext(ctx).
+		Where("wallet_id = ? AND user_fingerprint = ?", walletID, strings.TrimSpace(userFingerprint)).
+		Delete(&model.Watchlist{}).Error
+}
+
+func (r *WatchlistRepository) CountByUser(ctx context.Context, userFingerprint string) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.Watchlist{}).
+		Where("user_fingerprint = ?", strings.TrimSpace(userFingerprint)).
+		Count(&total).Error
+	return total, err
+}
+
+func (r *WatchlistRepository) ListByUser(ctx context.Context, userFingerprint string, limit int, offset int) ([]WatchlistWalletRow, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows := make([]WatchlistWalletRow, 0, limit)
+	err := r.db.WithContext(ctx).Raw(`
+WITH taker AS (
+    SELECT
+        taker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE
+            WHEN side = 0 THEN (price * size) - fee_paid
+            WHEN side = 1 THEN -((price * size) + fee_paid)
+            ELSE 0
+        END), 0) AS trading_pnl
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+    GROUP BY taker_wallet_id
+),
+maker AS (
+    SELECT
+        maker_wallet_id AS wallet_id,
+        COUNT(*) AS trade_count,
+        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+    GROUP BY maker_wallet_id
+),
+merged AS (
+    SELECT
+        x.wallet_id,
+        SUM(x.trade_count) AS trade_count,
+        SUM(x.trading_pnl) AS trading_pnl,
+        SUM(x.maker_rebates) AS maker_rebates
+    FROM (
+        SELECT wallet_id, trade_count, trading_pnl, 0::numeric AS maker_rebates FROM taker
+        UNION ALL
+        SELECT wallet_id, trade_count, 0::numeric AS trading_pnl, maker_rebates FROM maker
+    ) x
+    GROUP BY x.wallet_id
+),
+latest_score AS (
+    SELECT DISTINCT ON (wallet_id)
+        wallet_id, smart_score, info_edge_level, strategy_type
+    FROM wallet_score
+    ORDER BY wallet_id, scored_at DESC
+),
+latest_ai AS (
+    SELECT wallet_id, MAX(created_at) AS last_analyzed_at
+    FROM ai_analysis_report
+    GROUP BY wallet_id
+)
+SELECT
+    wl.id AS watchlist_id,
+    wl.created_at AS watchlisted_at,
+    w.id AS wallet_id,
+    w.address AS address,
+    w.pseudonym AS pseudonym,
+    w.is_tracked AS is_tracked,
+    COALESCE(m.trade_count, 0) AS trade_count,
+    COALESCE(m.trading_pnl, 0) AS trading_pnl,
+    COALESCE(m.maker_rebates, 0) AS maker_rebates,
+    (COALESCE(m.trading_pnl, 0) + COALESCE(m.maker_rebates, 0)) AS realized_pnl,
+    COALESCE(s.smart_score, 0) AS smart_score,
+    COALESCE(s.info_edge_level, 'unknown') AS info_edge_level,
+    COALESCE(s.strategy_type, 'unknown') AS strategy_type,
+    a.last_analyzed_at
+FROM watchlist wl
+JOIN wallet w ON w.id = wl.wallet_id
+LEFT JOIN merged m ON m.wallet_id = w.id
+LEFT JOIN latest_score s ON s.wallet_id = w.id
+LEFT JOIN latest_ai a ON a.wallet_id = w.id
+WHERE wl.user_fingerprint = ?
+ORDER BY wl.created_at DESC, wl.id DESC
+LIMIT ? OFFSET ?`, strings.TrimSpace(userFingerprint), limit, offset).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *WatchlistRepository) CountFeedByUser(ctx context.Context, userFingerprint string, eventType string) (int64, error) {
+	var total int64
+	query := `
+SELECT COUNT(*)
+FROM (
+    SELECT e.id AS event_id, e.wallet_id, e.event_type, e.created_at
+    FROM watchlist wl
+    JOIN wallet_update_event e ON e.wallet_id = wl.wallet_id
+    WHERE wl.user_fingerprint = ?
+    UNION ALL
+    SELECT a.id AS event_id, a.wallet_id,
+      CASE WHEN a.alert_type = 'pnl_spike' THEN 'pnl_jump' ELSE 'anomaly' END AS event_type,
+      a.created_at
+    FROM watchlist wl
+    JOIN anomaly_alert a ON a.wallet_id = wl.wallet_id
+    WHERE wl.user_fingerprint = ?
+) x
+WHERE (? = '' OR x.event_type = ?)
+`
+	err := r.db.WithContext(ctx).Raw(query,
+		strings.TrimSpace(userFingerprint),
+		strings.TrimSpace(userFingerprint),
+		strings.TrimSpace(eventType),
+		strings.TrimSpace(eventType),
+	).Scan(&total).Error
+	return total, err
+}
+
+func (r *WatchlistRepository) ListFeedByUser(ctx context.Context, userFingerprint string, eventType string, limit int, offset int) ([]WatchlistFeedRow, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows := make([]WatchlistFeedRow, 0, limit)
+	err := r.db.WithContext(ctx).Raw(`
+SELECT
+    x.event_id,
+    x.wallet_id,
+    w.address,
+    w.pseudonym,
+    x.event_type,
+    x.event_payload,
+    x.event_time
+FROM (
+    SELECT
+        e.id AS event_id,
+        e.wallet_id,
+        e.event_type,
+        e.payload AS event_payload,
+        e.created_at AS event_time
+    FROM watchlist wl
+    JOIN wallet_update_event e ON e.wallet_id = wl.wallet_id
+    WHERE wl.user_fingerprint = ?
+    UNION ALL
+    SELECT
+        a.id AS event_id,
+        a.wallet_id,
+        CASE WHEN a.alert_type = 'pnl_spike' THEN 'pnl_jump' ELSE 'anomaly' END AS event_type,
+        a.evidence AS event_payload,
+        a.created_at AS event_time
+    FROM watchlist wl
+    JOIN anomaly_alert a ON a.wallet_id = wl.wallet_id
+    WHERE wl.user_fingerprint = ?
+) x
+JOIN wallet w ON w.id = x.wallet_id
+WHERE (? = '' OR x.event_type = ?)
+ORDER BY x.event_time DESC, x.event_id DESC
+LIMIT ? OFFSET ?`,
+		strings.TrimSpace(userFingerprint),
+		strings.TrimSpace(userFingerprint),
+		strings.TrimSpace(eventType),
+		strings.TrimSpace(eventType),
+		limit,
+		offset,
+	).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *WatchlistRepository) CreateUpdateEvent(ctx context.Context, walletID int64, eventType string, payload json.RawMessage) error {
+	event := model.WalletUpdateEvent{
+		WalletID:  walletID,
+		EventType: strings.TrimSpace(eventType),
+		Payload:   datatypes.JSON(payload),
+	}
+	return r.db.WithContext(ctx).Create(&event).Error
 }
 
 func buildOrderClause(sortBy string, order string, allow map[string]struct{}) string {

@@ -9,6 +9,8 @@ import {
   Paged,
   PotentialWallet,
   Wallet,
+  WatchlistFeedItem,
+  WatchlistItem,
   WalletExplanation,
   WalletProfile,
   WalletShareCard
@@ -19,8 +21,8 @@ const API_BASE =
     ? process.env.API_SERVER_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://backend:8080/api/v1"
     : process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 
-async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store", ...init });
   if (!res.ok) {
     throw new Error(`API ${res.status}`);
   }
@@ -84,4 +86,36 @@ export function getAnomalies(params: URLSearchParams) {
 
 export function getAnomaly(id: string) {
   return getJSON<AnomalyAlert>(`/anomalies/${id}`);
+}
+
+export function getWatchlist(params: URLSearchParams, fingerprint: string) {
+  const q = params.toString();
+  return getJSON<Paged<WatchlistItem>>(`/watchlist${q ? `?${q}` : ""}`, {
+    headers: { "X-User-Fingerprint": fingerprint }
+  });
+}
+
+export function getWatchlistFeed(params: URLSearchParams, fingerprint: string) {
+  const q = params.toString();
+  return getJSON<Paged<WatchlistFeedItem>>(`/watchlist/feed${q ? `?${q}` : ""}`, {
+    headers: { "X-User-Fingerprint": fingerprint }
+  });
+}
+
+export async function addToWatchlist(walletID: number, fingerprint: string) {
+  return getJSON<{ wallet_id: number; watching: boolean }>(`/watchlist`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Fingerprint": fingerprint
+    },
+    body: JSON.stringify({ wallet_id: walletID })
+  });
+}
+
+export async function removeFromWatchlist(walletID: number, fingerprint: string) {
+  return getJSON<{ wallet_id: number; watching: boolean }>(`/watchlist/${walletID}`, {
+    method: "DELETE",
+    headers: { "X-User-Fingerprint": fingerprint }
+  });
 }

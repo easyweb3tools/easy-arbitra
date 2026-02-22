@@ -5,6 +5,7 @@ export function Sidebar({ locale }: { locale: Locale }) {
   const nav = [
     { href: "/", label: t(locale, "nav.dashboard") },
     { href: "/wallets", label: t(locale, "nav.wallets") },
+    { href: "/watchlist", label: t(locale, "nav.watchlist") },
     { href: "/markets", label: t(locale, "nav.markets") },
     { href: "/leaderboard", label: t(locale, "nav.leaderboard") },
     { href: "/anomalies", label: t(locale, "nav.anomalies") },

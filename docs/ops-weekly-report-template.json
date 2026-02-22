@@ -1,0 +1,73 @@
+{
+  "period": {
+    "start_utc": "2026-02-16T00:00:00Z",
+    "end_utc": "2026-02-22T23:59:59Z"
+  },
+  "overview": {
+    "as_of": "2026-02-22T12:00:00Z",
+    "indexed_markets": 0,
+    "potential_wallets_total": 0,
+    "new_potential_wallets_7d": 0,
+    "ai_reports_generated_7d": 0,
+    "watchlist_active_users_7d": 0,
+    "watchlist_total_follows": 0
+  },
+  "growth": {
+    "home_module_ctr": 0,
+    "wallet_detail_avg_duration_sec": 0,
+    "share_copy_count": 0,
+    "follow_conversion_rate": 0,
+    "d1_retention": 0,
+    "d7_retention": 0
+  },
+  "content": {
+    "top_realized_pnl_24h": [
+      {
+        "wallet_id": 0,
+        "address": "0x...",
+        "trade_count": 0,
+        "realized_pnl": 0,
+        "realized_pnl_24h": 0,
+        "has_ai_report": false,
+        "model_id": "",
+        "nl_summary": ""
+      }
+    ],
+    "top_ai_confidence": [
+      {
+        "wallet_id": 0,
+        "address": "0x...",
+        "trade_count": 0,
+        "smart_score": 0,
+        "info_edge_level": "",
+        "strategy_type": "",
+        "nl_summary": ""
+      }
+    ]
+  },
+  "watchlist_feed_breakdown_7d": {
+    "ai_report": 0,
+    "anomaly": 0,
+    "pnl_jump": 0
+  },
+  "quality": {
+    "wallets_with_100plus_trades_ratio": 0,
+    "wallets_positive_realized_pnl_ratio": 0,
+    "ai_analyze_success_rate": 0,
+    "api_p95_ms": 0,
+    "syncer_error_count": 0
+  },
+  "actions_next_week": [
+    "Increase AI batch size during low-traffic windows.",
+    "Expand high-confidence wallet explain cards on homepage.",
+    "Optimize follow CTA placement on wallet detail page."
+  ],
+  "data_sources": {
+    "ops_highlights_api": "/api/v1/ops/highlights",
+    "potential_wallets_api": "/api/v1/wallets/potential",
+    "watchlist_api": "/api/v1/watchlist",
+    "watchlist_feed_api": "/api/v1/watchlist/feed",
+    "ai_report_table": "ai_analysis_report",
+    "anomaly_table": "anomaly_alert"
+  }
+}

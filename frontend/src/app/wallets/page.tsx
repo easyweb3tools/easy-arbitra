@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getPotentialWallets } from "@/lib/api";
+import { WatchlistToggleButton } from "@/components/watchlist/WatchlistToggleButton";
 import { t } from "@/lib/i18n";
 import { getLocaleFromCookies } from "@/lib/i18n-server";
 import { appendUTM, pickUTM } from "@/lib/utm";
@@ -82,28 +83,37 @@ export default async function WalletsPage({
         <p className="mb-4 text-xs text-muted">{t(locale, "wallets.sortHint")}</p>
         <div className="space-y-2">
           {wallets.items.map((item) => (
-            <Link
-              key={item.wallet.id}
-              href={appendUTM(`/wallets/${item.wallet.id}`, utm)}
-              className="block rounded-md border border-slate-200 p-3 hover:bg-slate-50"
-            >
+            <div key={item.wallet.id} className="rounded-md border border-slate-200 p-3 hover:bg-slate-50">
               <div className="flex items-start justify-between gap-2">
-                <div>
+                <Link href={appendUTM(`/wallets/${item.wallet.id}`, utm)} className="min-w-0 flex-1">
                   <p className="font-medium">{item.wallet.pseudonym || t(locale, "wallets.unnamed")}</p>
-                  <p className="text-xs text-muted">{item.wallet.address}</p>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">{t(locale, "wallets.tagPotential")}</span>
-                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${item.has_ai_report ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
-                    {item.has_ai_report ? t(locale, "wallets.tagAnalyzed") : t(locale, "wallets.tagNotAnalyzed")}
-                  </span>
+                  <p className="truncate text-xs text-muted">{item.wallet.address}</p>
+                </Link>
+                <div className="flex flex-col items-end gap-1">
+                  <WatchlistToggleButton
+                    walletID={item.wallet.id}
+                    labels={{
+                      follow: t(locale, "watchlist.follow"),
+                      unfollow: t(locale, "watchlist.unfollow"),
+                      following: t(locale, "watchlist.following"),
+                      failed: t(locale, "watchlist.failed")
+                    }}
+                  />
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">{t(locale, "wallets.tagPotential")}</span>
+                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${item.has_ai_report ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+                      {item.has_ai_report ? t(locale, "wallets.tagAnalyzed") : t(locale, "wallets.tagNotAnalyzed")}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-muted">
-                {t(locale, "home.trades")} {item.total_trades} · {t(locale, "home.realizedPnl")} {item.realized_pnl.toFixed(2)} · {t(locale, "home.score")}{" "}
-                {item.smart_score} · {item.strategy_type || t(locale, "wallets.strategyUnknown")} / {item.info_edge_level || t(locale, "wallets.strategyUnknown")}
-              </p>
-            </Link>
+              <Link href={appendUTM(`/wallets/${item.wallet.id}`, utm)} className="block">
+                <p className="mt-2 text-xs text-muted">
+                  {t(locale, "home.trades")} {item.total_trades} · {t(locale, "home.realizedPnl")} {item.realized_pnl.toFixed(2)} · {t(locale, "home.score")}{" "}
+                  {item.smart_score} · {item.strategy_type || t(locale, "wallets.strategyUnknown")} / {item.info_edge_level || t(locale, "wallets.strategyUnknown")}
+                </p>
+              </Link>
+            </div>
           ))}
         </div>
       </article>

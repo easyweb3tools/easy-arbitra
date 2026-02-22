@@ -27,6 +27,10 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 		v1.GET("/wallets/:id/share-card", h.GetWalletShareCard)
 		v1.GET("/wallets/:id/explanations", h.GetWalletExplanations)
 		v1.GET("/wallets/:id/info-edge", h.GetWalletInfoEdge)
+		v1.GET("/watchlist", h.ListWatchlist)
+		v1.POST("/watchlist", h.AddToWatchlist)
+		v1.DELETE("/watchlist/:wallet_id", h.RemoveFromWatchlist)
+		v1.GET("/watchlist/feed", h.GetWatchlistFeed)
 
 		v1.GET("/markets", h.ListMarkets)
 		v1.GET("/markets/:id", h.GetMarket)
