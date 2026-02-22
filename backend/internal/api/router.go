@@ -24,6 +24,7 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 		v1.GET("/wallets/potential", h.ListPotentialWallets)
 		v1.GET("/wallets/:id", h.GetWallet)
 		v1.GET("/wallets/:id/profile", h.GetWalletProfile)
+		v1.GET("/wallets/:id/share-card", h.GetWalletShareCard)
 		v1.GET("/wallets/:id/explanations", h.GetWalletExplanations)
 		v1.GET("/wallets/:id/info-edge", h.GetWalletInfoEdge)
 
@@ -32,6 +33,7 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 
 		v1.GET("/leaderboard", h.GetLeaderboard)
 		v1.GET("/stats/overview", h.GetOverviewStats)
+		v1.GET("/ops/highlights", h.GetOpsHighlights)
 		v1.GET("/anomalies", h.ListAnomalies)
 		v1.GET("/anomalies/:id", h.GetAnomaly)
 		v1.PATCH("/anomalies/:id/acknowledge", h.AcknowledgeAnomaly)

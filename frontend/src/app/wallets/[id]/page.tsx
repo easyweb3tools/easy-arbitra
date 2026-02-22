@@ -1,5 +1,6 @@
-import { getWalletAIReport, getWalletAIReportHistory, getWalletExplanation, getWalletProfile } from "@/lib/api";
+import { getWalletAIReport, getWalletAIReportHistory, getWalletExplanation, getWalletProfile, getWalletShareCard } from "@/lib/api";
 import { TriggerAnalysisButton } from "@/components/ai/TriggerAnalysisButton";
+import { ShareCardPanel } from "@/components/share/ShareCardPanel";
 import { t } from "@/lib/i18n";
 import { getLocaleFromCookies } from "@/lib/i18n-server";
 
@@ -9,6 +10,7 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
   const locale = await getLocaleFromCookies();
   const profile = await getWalletProfile(params.id);
   const explanation = await getWalletExplanation(params.id);
+  const shareCard = await getWalletShareCard(params.id);
 
   let aiReport = null;
   let aiHistory: Awaited<ReturnType<typeof getWalletAIReportHistory>> = [];
@@ -98,6 +100,22 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
           <p key={d}>{d}</p>
         ))}
       </article>
+
+      <ShareCardPanel
+        card={shareCard}
+        locale={locale}
+        labels={{
+          title: t(locale, "share.title"),
+          preview: t(locale, "share.preview"),
+          copyLink: t(locale, "share.copyLink"),
+          copied: t(locale, "share.copied"),
+          copyFailed: t(locale, "share.copyFailed"),
+          trades: t(locale, "share.trades"),
+          realizedPnl: t(locale, "share.realizedPnl"),
+          score: t(locale, "share.score"),
+          updatedAt: t(locale, "share.updatedAt")
+        }}
+      />
 
       <article className="rounded-lg bg-card p-5 shadow-sm">
         <h3 className="mb-2 text-base font-semibold">{t(locale, "profile.evidence")}</h3>

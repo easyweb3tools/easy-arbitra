@@ -20,10 +20,11 @@ var ErrInsufficientTrades = errors.New("wallet has fewer than 100 trades")
 var ErrNonPositivePnL = errors.New("wallet pnl is not positive")
 
 type WalletService struct {
-	walletRepo *repository.WalletRepository
-	scoreRepo  *repository.ScoreRepository
-	tradeRepo  *repository.TradeRepository
-	infoEdge   *InfoEdgeService
+	walletRepo   *repository.WalletRepository
+	scoreRepo    *repository.ScoreRepository
+	tradeRepo    *repository.TradeRepository
+	aiReportRepo *repository.AIReportRepository
+	infoEdge     *InfoEdgeService
 }
 
 type MarketService struct {
@@ -34,6 +35,35 @@ type StatsService struct {
 	walletRepo *repository.WalletRepository
 	marketRepo *repository.MarketRepository
 	scoreRepo  *repository.ScoreRepository
+}
+
+type OpsHighlights struct {
+	AsOf                  string                         `json:"as_of"`
+	NewPotentialWallets24 int64                          `json:"new_potential_wallets_24h"`
+	TopRealizedPnL24h     []OpsTopRealizedWalletView     `json:"top_realized_pnl_24h"`
+	TopAIConfidence       []OpsTopAIConfidenceWalletView `json:"top_ai_confidence"`
+}
+
+type OpsTopRealizedWalletView struct {
+	Wallet         WalletView `json:"wallet"`
+	TradeCount     int64      `json:"trade_count"`
+	RealizedPnL    float64    `json:"realized_pnl"`
+	RealizedPnL24h float64    `json:"realized_pnl_24h"`
+	HasAIReport    bool       `json:"has_ai_report"`
+	NLSummary      string     `json:"nl_summary"`
+	ModelID        string     `json:"model_id"`
+	LastAnalyzedAt *string    `json:"last_analyzed_at,omitempty"`
+}
+
+type OpsTopAIConfidenceWalletView struct {
+	Wallet         WalletView `json:"wallet"`
+	TradeCount     int64      `json:"trade_count"`
+	RealizedPnL    float64    `json:"realized_pnl"`
+	SmartScore     int        `json:"smart_score"`
+	InfoEdgeLevel  string     `json:"info_edge_level"`
+	StrategyType   string     `json:"strategy_type"`
+	NLSummary      string     `json:"nl_summary"`
+	LastAnalyzedAt *string    `json:"last_analyzed_at,omitempty"`
 }
 
 type AIService struct {
@@ -112,6 +142,18 @@ type WalletProfile struct {
 	Meta     map[string][]string `json:"meta"`
 }
 
+type WalletShareCardView struct {
+	Wallet        WalletView `json:"wallet"`
+	TotalTrades   int64      `json:"total_trades"`
+	RealizedPnL   float64    `json:"realized_pnl"`
+	SmartScore    int        `json:"smart_score"`
+	InfoEdgeLevel string     `json:"info_edge_level"`
+	StrategyType  string     `json:"strategy_type"`
+	HasAIReport   bool       `json:"has_ai_report"`
+	NLSummary     string     `json:"nl_summary"`
+	UpdatedAt     string     `json:"updated_at"`
+}
+
 type Layer1Facts struct {
 	RealizedPnL   float64 `json:"realized_pnl"`
 	UnrealizedPnL float64 `json:"unrealized_pnl"`
@@ -169,9 +211,10 @@ func NewWalletService(
 	walletRepo *repository.WalletRepository,
 	scoreRepo *repository.ScoreRepository,
 	tradeRepo *repository.TradeRepository,
+	aiReportRepo *repository.AIReportRepository,
 	infoEdge *InfoEdgeService,
 ) *WalletService {
-	return &WalletService{walletRepo: walletRepo, scoreRepo: scoreRepo, tradeRepo: tradeRepo, infoEdge: infoEdge}
+	return &WalletService{walletRepo: walletRepo, scoreRepo: scoreRepo, tradeRepo: tradeRepo, aiReportRepo: aiReportRepo, infoEdge: infoEdge}
 }
 
 func NewMarketService(marketRepo *repository.MarketRepository) *MarketService {
@@ -346,6 +389,70 @@ func (s *WalletService) GetProfile(ctx context.Context, id int64) (*WalletProfil
 	return profile, nil
 }
 
+func (s *WalletService) GetShareCard(ctx context.Context, id int64) (*WalletShareCardView, error) {
+	wallet, err := s.walletRepo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	pnl, err := s.tradeRepo.AggregateByWalletID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	realized := pnl.TradingPnL + pnl.MakerRebates
+
+	strategyType := "unknown"
+	smartScore := 0
+	infoEdgeLevel := "unknown"
+	updatedAt := wallet.UpdatedAt.UTC()
+	score, err := s.scoreRepo.LatestByWalletID(ctx, id)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if score != nil {
+		strategyType = score.StrategyType
+		smartScore = score.SmartScore
+		infoEdgeLevel = score.InfoEdgeLevel
+		if score.ScoredAt.After(updatedAt) {
+			updatedAt = score.ScoredAt.UTC()
+		}
+	}
+
+	hasAI := false
+	summary := ""
+	report, err := s.aiReportRepo.LatestByWalletID(ctx, id)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if report != nil {
+		hasAI = true
+		summary = report.NLSummary
+		if report.CreatedAt.After(updatedAt) {
+			updatedAt = report.CreatedAt.UTC()
+		}
+	}
+
+	return &WalletShareCardView{
+		Wallet: WalletView{
+			ID:        wallet.ID,
+			Address:   polyaddr.BytesToHex(wallet.Address),
+			Pseudonym: wallet.Pseudonym,
+			Tracked:   wallet.IsTracked,
+		},
+		TotalTrades:   pnl.TotalTrades,
+		RealizedPnL:   realized,
+		SmartScore:    smartScore,
+		InfoEdgeLevel: infoEdgeLevel,
+		StrategyType:  strategyType,
+		HasAIReport:   hasAI,
+		NLSummary:     summary,
+		UpdatedAt:     updatedAt.Format(time.RFC3339),
+	}, nil
+}
+
 func (s *MarketService) List(ctx context.Context, q MarketListQuery) (*MarketListResult, error) {
 	items, total, err := s.marketRepo.List(ctx, repository.MarketListFilter{
 		Category: strings.TrimSpace(q.Category),
@@ -415,6 +522,78 @@ func (s *StatsService) Leaderboard(ctx context.Context, q LeaderboardQuery) (*Le
 			PageSize: q.PageSize,
 			Total:    total,
 		},
+	}, nil
+}
+
+func (s *StatsService) OpsHighlights(ctx context.Context, limit int) (*OpsHighlights, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	const minTrades int64 = 100
+	const minRealizedPnL float64 = 0
+
+	newPotential, err := s.walletRepo.CountNewPotentialWallets24h(ctx, minTrades, minRealizedPnL)
+	if err != nil {
+		return nil, err
+	}
+	topRealized, err := s.walletRepo.ListOpsTopRealizedWallets(ctx, limit, minTrades, minRealizedPnL)
+	if err != nil {
+		return nil, err
+	}
+	topAI, err := s.walletRepo.ListOpsTopAIConfidenceWallets(ctx, limit, minTrades, minRealizedPnL)
+	if err != nil {
+		return nil, err
+	}
+
+	realizedViews := make([]OpsTopRealizedWalletView, 0, len(topRealized))
+	for _, row := range topRealized {
+		var analyzedAt *string
+		if row.LastAnalyzedRaw != nil {
+			v := row.LastAnalyzedRaw.UTC().Format(time.RFC3339)
+			analyzedAt = &v
+		}
+		realizedViews = append(realizedViews, OpsTopRealizedWalletView{
+			Wallet: WalletView{
+				ID:      row.WalletID,
+				Address: polyaddr.BytesToHex(row.Address),
+			},
+			TradeCount:     row.TradeCount,
+			RealizedPnL:    row.RealizedPnL,
+			RealizedPnL24h: row.RealizedPnL24h,
+			HasAIReport:    row.HasAIReport,
+			NLSummary:      row.LatestSummary,
+			ModelID:        row.LatestModelID,
+			LastAnalyzedAt: analyzedAt,
+		})
+	}
+
+	aiViews := make([]OpsTopAIConfidenceWalletView, 0, len(topAI))
+	for _, row := range topAI {
+		var analyzedAt *string
+		if row.LastAnalyzedAt != nil {
+			v := row.LastAnalyzedAt.UTC().Format(time.RFC3339)
+			analyzedAt = &v
+		}
+		aiViews = append(aiViews, OpsTopAIConfidenceWalletView{
+			Wallet: WalletView{
+				ID:      row.WalletID,
+				Address: polyaddr.BytesToHex(row.Address),
+			},
+			TradeCount:     row.TradeCount,
+			RealizedPnL:    row.RealizedPnL,
+			SmartScore:     row.SmartScore,
+			InfoEdgeLevel:  row.InfoEdgeLevel,
+			StrategyType:   row.StrategyType,
+			NLSummary:      row.NLSummary,
+			LastAnalyzedAt: analyzedAt,
+		})
+	}
+
+	return &OpsHighlights{
+		AsOf:                  time.Now().UTC().Format(time.RFC3339),
+		NewPotentialWallets24: newPotential,
+		TopRealizedPnL24h:     realizedViews,
+		TopAIConfidence:       aiViews,
 	}, nil
 }
 

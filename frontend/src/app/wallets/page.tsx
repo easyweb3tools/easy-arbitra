@@ -2,15 +2,27 @@ import Link from "next/link";
 import { getPotentialWallets } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { getLocaleFromCookies } from "@/lib/i18n-server";
+import { appendUTM, pickUTM } from "@/lib/utm";
 
 export const dynamic = "force-dynamic";
 
 export default async function WalletsPage({
   searchParams
 }: {
-  searchParams: { page?: string; page_size?: string; min_trades?: string; min_realized_pnl?: string };
+  searchParams: {
+    page?: string;
+    page_size?: string;
+    min_trades?: string;
+    min_realized_pnl?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_term?: string;
+    utm_content?: string;
+  };
 }) {
   const locale = await getLocaleFromCookies();
+  const utm = pickUTM(searchParams);
   const params = new URLSearchParams({
     page: searchParams.page || "1",
     page_size: searchParams.page_size || "20",
@@ -43,6 +55,11 @@ export default async function WalletsPage({
         <button className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white" type="submit">
           {t(locale, "wallets.apply")}
         </button>
+        {utm.get("utm_source") ? <input type="hidden" name="utm_source" value={utm.get("utm_source") || ""} /> : null}
+        {utm.get("utm_medium") ? <input type="hidden" name="utm_medium" value={utm.get("utm_medium") || ""} /> : null}
+        {utm.get("utm_campaign") ? <input type="hidden" name="utm_campaign" value={utm.get("utm_campaign") || ""} /> : null}
+        {utm.get("utm_term") ? <input type="hidden" name="utm_term" value={utm.get("utm_term") || ""} /> : null}
+        {utm.get("utm_content") ? <input type="hidden" name="utm_content" value={utm.get("utm_content") || ""} /> : null}
       </form>
 
       <article className="grid gap-3 sm:grid-cols-3">
@@ -65,7 +82,11 @@ export default async function WalletsPage({
         <p className="mb-4 text-xs text-muted">{t(locale, "wallets.sortHint")}</p>
         <div className="space-y-2">
           {wallets.items.map((item) => (
-            <Link key={item.wallet.id} href={`/wallets/${item.wallet.id}`} className="block rounded-md border border-slate-200 p-3 hover:bg-slate-50">
+            <Link
+              key={item.wallet.id}
+              href={appendUTM(`/wallets/${item.wallet.id}`, utm)}
+              className="block rounded-md border border-slate-200 p-3 hover:bg-slate-50"
+            >
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-medium">{item.wallet.pseudonym || t(locale, "wallets.unnamed")}</p>

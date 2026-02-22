@@ -128,6 +128,24 @@ func (h *Handlers) GetWalletProfile(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func (h *Handlers) GetWalletShareCard(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid wallet id")
+		return
+	}
+	row, err := h.walletService.GetShareCard(c.Request.Context(), id)
+	if err != nil {
+		if err == service.ErrNotFound {
+			response.NotFound(c, "wallet not found")
+			return
+		}
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, row)
+}
+
 func (h *Handlers) GetWalletExplanations(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -204,6 +222,19 @@ func (h *Handlers) GetOverviewStats(c *gin.Context) {
 		return
 	}
 	response.OK(c, stats)
+}
+
+func (h *Handlers) GetOpsHighlights(c *gin.Context) {
+	limit := parsePositiveInt(c.DefaultQuery("limit", "5"), 5)
+	if limit > 20 {
+		limit = 20
+	}
+	rows, err := h.statsService.OpsHighlights(c.Request.Context(), limit)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
 }
 
 func (h *Handlers) GetLeaderboard(c *gin.Context) {

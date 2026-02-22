@@ -85,7 +85,7 @@ func main() {
 	aiReportRepo := repository.NewAIReportRepository(db)
 
 	infoEdgeService := service.NewInfoEdgeService(tradeRepo)
-	walletService := service.NewWalletService(walletRepo, scoreRepo, tradeRepo, infoEdgeService)
+	walletService := service.NewWalletService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, infoEdgeService)
 	marketService := service.NewMarketService(marketRepo)
 	statsService := service.NewStatsService(walletRepo, marketRepo, scoreRepo)
 	anomalyService := service.NewAnomalyService(anomalyRepo, walletRepo, tradeRepo, infoEdgeService)

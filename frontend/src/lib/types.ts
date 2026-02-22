@@ -94,6 +94,18 @@ export type WalletProfile = {
   };
 };
 
+export type WalletShareCard = {
+  wallet: Wallet;
+  total_trades: number;
+  realized_pnl: number;
+  smart_score: number;
+  info_edge_level: string;
+  strategy_type: string;
+  has_ai_report: boolean;
+  nl_summary: string;
+  updated_at: string;
+};
+
 export type WalletExplanation = {
   wallet_id: number;
   address: string;
@@ -107,6 +119,35 @@ export type WalletExplanation = {
 export type OverviewStats = {
   tracked_wallets: number;
   indexed_markets: number;
+};
+
+export type OpsTopRealizedWallet = {
+  wallet: Wallet;
+  trade_count: number;
+  realized_pnl: number;
+  realized_pnl_24h: number;
+  has_ai_report: boolean;
+  nl_summary: string;
+  model_id: string;
+  last_analyzed_at?: string;
+};
+
+export type OpsTopAIConfidenceWallet = {
+  wallet: Wallet;
+  trade_count: number;
+  realized_pnl: number;
+  smart_score: number;
+  info_edge_level: string;
+  strategy_type: string;
+  nl_summary: string;
+  last_analyzed_at?: string;
+};
+
+export type OpsHighlights = {
+  as_of: string;
+  new_potential_wallets_24h: number;
+  top_realized_pnl_24h: OpsTopRealizedWallet[];
+  top_ai_confidence: OpsTopAIConfidenceWallet[];
 };
 
 export type Paged<T> = {

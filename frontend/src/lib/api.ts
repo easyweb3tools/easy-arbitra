@@ -4,12 +4,14 @@ import {
   ApiEnvelope,
   LeaderboardItem,
   Market,
+  OpsHighlights,
   OverviewStats,
   Paged,
   PotentialWallet,
   Wallet,
   WalletExplanation,
-  WalletProfile
+  WalletProfile,
+  WalletShareCard
 } from "@/lib/types";
 
 const API_BASE =
@@ -40,6 +42,10 @@ export function getWalletProfile(id: string) {
   return getJSON<WalletProfile>(`/wallets/${id}/profile`);
 }
 
+export function getWalletShareCard(id: string) {
+  return getJSON<WalletShareCard>(`/wallets/${id}/share-card`);
+}
+
 export function getWalletExplanation(id: string) {
   return getJSON<WalletExplanation>(`/wallets/${id}/explanations`);
 }
@@ -59,6 +65,11 @@ export function getMarkets(params: URLSearchParams) {
 
 export function getOverviewStats() {
   return getJSON<OverviewStats>("/stats/overview");
+}
+
+export function getOpsHighlights(params?: URLSearchParams) {
+  const q = params?.toString() || "";
+  return getJSON<OpsHighlights>(`/ops/highlights${q ? `?${q}` : ""}`);
 }
 
 export function getLeaderboard(params: URLSearchParams) {
