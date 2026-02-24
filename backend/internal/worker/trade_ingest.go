@@ -2,6 +2,8 @@ package worker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -55,7 +57,20 @@ func ingestTrade(
 	if trade.Timestamp > 0 {
 		blockTime = time.Unix(trade.Timestamp, 0).UTC()
 	}
-	uniqKey := fmt.Sprintf("%s-%d", strings.ToLower(trade.TransactionHash), trade.Timestamp)
+	uniqSeed := fmt.Sprintf(
+		"%s|%d|%s|%s|%s|%s|%.10f|%.10f|%d",
+		strings.ToLower(trade.TransactionHash),
+		trade.Timestamp,
+		strings.ToLower(strings.TrimSpace(trade.TokenID)),
+		strings.ToLower(strings.TrimSpace(trade.MakerAddress)),
+		strings.ToLower(strings.TrimSpace(trade.TakerAddress)),
+		strings.ToLower(strings.TrimSpace(trade.Side)),
+		trade.Price,
+		trade.Size,
+		side,
+	)
+	sum := sha256.Sum256([]byte(uniqSeed))
+	uniqKey := hex.EncodeToString(sum[:])
 	return tradeRepo.Upsert(ctx, model.TradeFill{
 		TokenID:       token.ID,
 		MakerWalletID: makerID,

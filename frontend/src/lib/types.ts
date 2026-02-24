@@ -14,7 +14,10 @@ export type PotentialWallet = {
   smart_score: number;
   info_edge_level: string;
   strategy_type: string;
+  pool_tier: "star" | "strategy" | "observation";
   has_ai_report: boolean;
+  nl_summary: string;
+  summary: string;
   last_analyzed_at?: string;
 };
 
@@ -37,6 +40,7 @@ export type LeaderboardItem = {
   strategy_type: string;
   smart_score: number;
   info_edge_level: string;
+  pool_tier?: "star" | "strategy" | "observation";
   scored_at: string;
 };
 
@@ -80,6 +84,7 @@ export type WalletProfile = {
     strategy_type: string;
     smart_score: number;
     info_edge_level: string;
+    pool_tier: "star" | "strategy" | "observation";
     confidence: number;
     scored_at: string;
   };
@@ -93,6 +98,7 @@ export type WalletProfile = {
   meta: {
     disclosures: string[];
   };
+  recent_events?: WalletEvent[];
 };
 
 export type WalletShareCard = {
@@ -102,8 +108,11 @@ export type WalletShareCard = {
   smart_score: number;
   info_edge_level: string;
   strategy_type: string;
+  pool_tier: "star" | "strategy" | "observation";
   has_ai_report: boolean;
   nl_summary: string;
+  follower_count: number;
+  new_followers_7d: number;
   updated_at: string;
 };
 
@@ -130,6 +139,7 @@ export type OpsTopRealizedWallet = {
   has_ai_report: boolean;
   nl_summary: string;
   model_id: string;
+  recommend_reason: string;
   last_analyzed_at?: string;
 };
 
@@ -141,6 +151,7 @@ export type OpsTopAIConfidenceWallet = {
   info_edge_level: string;
   strategy_type: string;
   nl_summary: string;
+  recommend_reason: string;
   last_analyzed_at?: string;
 };
 
@@ -162,7 +173,9 @@ export type WatchlistItem = {
   smart_score: number;
   info_edge_level: string;
   strategy_type: string;
+  pool_tier: "star" | "strategy" | "observation";
   has_ai_report: boolean;
+  nl_summary: string;
   last_analyzed_at?: string;
 };
 
@@ -171,7 +184,70 @@ export type WatchlistFeedItem = {
   wallet: Wallet;
   event_type: string;
   event_payload: Record<string, unknown>;
+  action_required: boolean;
+  suggestion: string;
+  suggestion_zh: string;
   event_time: string;
+};
+
+export type WalletDecisionCard = {
+  wallet_id: number;
+  pool_tier: "star" | "strategy" | "observation";
+  suitable_for: "conservative" | "aggressive" | "event_driven" | string;
+  risk_level: "low" | "medium" | "high" | string;
+  suggested_position: string;
+  momentum: "heating" | "stable" | "cooling" | string;
+  status_7d: string;
+  recommendation: string;
+  recommendation_zh: string;
+  disclaimer: string;
+  disclaimer_zh: string;
+  last_updated: string;
+};
+
+export type WalletEvent = {
+  event_id: number;
+  event_type: string;
+  event_payload: Record<string, unknown>;
+  action_required: boolean;
+  suggestion: string;
+  suggestion_zh: string;
+  event_time: string;
+};
+
+export type WalletShareLanding = {
+  wallet: Wallet;
+  pool_tier: "star" | "strategy" | "observation";
+  strategy_type: string;
+  smart_score: number;
+  pnl_7d: number;
+  pnl_30d: number;
+  max_drawdown_7d: number;
+  stability_score: number;
+  nl_summary: string;
+  follower_count: number;
+  new_followers_7d: number;
+  decision_card: WalletDecisionCard;
+  updated_at: string;
+};
+
+export type PortfolioItem = {
+  id: number;
+  name: string;
+  name_zh: string;
+  description: string;
+  risk_level: "low" | "medium" | "high" | string;
+  expected_return: string;
+  max_drawdown: string;
+  wallet_ids: number[];
+  wallets: Wallet[];
+};
+
+export type WatchlistSummary = {
+  followed_wallets: number;
+  style_distribution: Record<string, number>;
+  action_required: number;
+  healthy_wallets: number;
 };
 
 export type Paged<T> = {

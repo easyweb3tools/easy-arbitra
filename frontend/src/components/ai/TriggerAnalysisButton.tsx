@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Brain, Loader2, CheckCircle, XCircle } from "lucide-react";
 
 type Labels = {
   trigger: string;
@@ -16,7 +17,7 @@ const defaultLabels: Labels = {
   loading: "Analyzing...",
   updatedAt: "Updated at",
   failedPrefix: "Analyze failed",
-  requestFailed: "request failed"
+  requestFailed: "request failed",
 };
 
 export function TriggerAnalysisButton({ walletID, labels }: { walletID: string; labels?: Labels }) {
@@ -47,17 +48,38 @@ export function TriggerAnalysisButton({ walletID, labels }: { walletID: string; 
   }
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={onTrigger}
         disabled={state === "loading"}
-        className="rounded-md bg-accent px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+        className={[
+          "inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-subheadline font-semibold",
+          "transition-all duration-200 ease-apple",
+          "disabled:opacity-35 disabled:pointer-events-none",
+          "active:scale-[0.97]",
+          "bg-tint-blue/[0.12] text-tint-blue hover:bg-tint-blue/[0.15]",
+        ].join(" ")}
       >
+        {state === "loading" ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Brain className="h-4 w-4" />
+        )}
         {state === "loading" ? text.loading : text.trigger}
       </button>
-      {state === "done" && <p className="text-xs text-emerald-700">{message}</p>}
-      {state === "error" && <p className="text-xs text-rose-700">{text.failedPrefix}: {message}</p>}
+      {state === "done" && (
+        <span className="flex items-center gap-1 text-caption-1 text-tint-green">
+          <CheckCircle className="h-3.5 w-3.5" />
+          {message}
+        </span>
+      )}
+      {state === "error" && (
+        <span className="flex items-center gap-1 text-caption-1 text-tint-red">
+          <XCircle className="h-3.5 w-3.5" />
+          {text.failedPrefix}: {message}
+        </span>
+      )}
     </div>
   );
 }

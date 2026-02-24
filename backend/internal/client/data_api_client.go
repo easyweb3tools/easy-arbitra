@@ -45,11 +45,18 @@ func NewDataAPIClient(baseURL string, timeout time.Duration) *DataAPIClient {
 }
 
 func (c *DataAPIClient) FetchTrades(ctx context.Context, limit int) ([]TradeDTO, error) {
+	return c.FetchTradesPage(ctx, limit, 0)
+}
+
+func (c *DataAPIClient) FetchTradesPage(ctx context.Context, limit int, offset int) ([]TradeDTO, error) {
 	if limit <= 0 {
 		limit = 200
 	}
+	if offset < 0 {
+		offset = 0
+	}
 	var raw json.RawMessage
-	if err := c.http.GetJSON(ctx, fmt.Sprintf("/trades?limit=%d", limit), &raw); err != nil {
+	if err := c.http.GetJSON(ctx, fmt.Sprintf("/trades?limit=%d&offset=%d", limit, offset), &raw); err != nil {
 		return nil, err
 	}
 	rows, err := decodeTrades(raw)

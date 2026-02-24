@@ -68,18 +68,56 @@ func (s *ClassificationService) ClassifyWallet(ctx context.Context, walletID int
 		score = 0
 	}
 
+	poolTier := "observation"
+	if score >= 80 && f.Pnl30d > 0 && f.Pnl7d >= 0 {
+		poolTier = "star"
+	} else if score >= 65 && f.Pnl30d > 0 {
+		poolTier = "strategy"
+	}
+	riskLevel := "high"
+	if score >= 80 {
+		riskLevel = "low"
+	} else if score >= 60 {
+		riskLevel = "medium"
+	}
+	suitableFor := "aggressive"
+	if strategy == "market_maker" || strategy == "quant" {
+		suitableFor = "conservative"
+	} else if strategy == "event_trader" || strategy == "arbitrage" {
+		suitableFor = "event_driven"
+	}
+	suggestedPosition := "1-3%"
+	if riskLevel == "low" {
+		suggestedPosition = "5-10%"
+	} else if riskLevel == "medium" {
+		suggestedPosition = "3-5%"
+	}
+	momentum := "stable"
+	if f.Pnl7d > 0 {
+		momentum = "heating"
+	} else if f.Pnl7d < 0 {
+		momentum = "cooling"
+	}
+	now := time.Now().UTC()
+
 	detail := datatypes.JSON([]byte(fmt.Sprintf(
 		`{"pnl_7d":%.2f,"pnl_30d":%.2f,"pnl_90d":%.2f,"maker_ratio":%.4f,"trade_count_30d":%d,"active_days_30d":%d,"tx_frequency_per_day":%.3f,"avg_edge":%.6f}`,
 		f.Pnl7d, f.Pnl30d, f.Pnl90d, f.MakerRatio, f.TradeCount30d, f.ActiveDays30d, f.TxFrequencyPerDay, f.AvgEdge,
 	)))
 	return s.scoreRepo.UpsertLatest(ctx, model.WalletScore{
 		WalletID:           walletID,
-		ScoredAt:           time.Now().UTC().Truncate(time.Hour),
+		ScoredAt:           now.Truncate(time.Hour),
 		StrategyType:       strategy,
 		StrategyConfidence: confidence,
 		InfoEdgeLevel:      infoEdge,
 		InfoEdgeConfidence: confidence,
 		SmartScore:         score,
+		PoolTier:           poolTier,
+		PoolTierUpdatedAt:  &now,
+		SuitableFor:        suitableFor,
+		RiskLevel:          riskLevel,
+		SuggestedPosition:  suggestedPosition,
+		Momentum:           momentum,
 		ScoringDetail:      detail,
 	})
 }

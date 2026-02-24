@@ -52,36 +52,41 @@ type NovaConfig struct {
 }
 
 type PolymarketConfig struct {
-	GammaAPIURL string        `mapstructure:"gamma_api_url"`
-	DataAPIURL  string        `mapstructure:"data_api_url"`
-	RequestTO   time.Duration `mapstructure:"request_timeout"`
+	GammaAPIURL       string        `mapstructure:"gamma_api_url"`
+	DataAPIURL        string        `mapstructure:"data_api_url"`
+	OffchainEventsURL string        `mapstructure:"offchain_events_url"`
+	RequestTO         time.Duration `mapstructure:"request_timeout"`
 }
 
 type WorkerConfig struct {
-	Enabled                     bool          `mapstructure:"enabled"`
-	MarketSyncerInterval        time.Duration `mapstructure:"market_syncer_interval"`
-	TradeSyncerInterval         time.Duration `mapstructure:"trade_syncer_interval"`
-	TradeBackfillSyncerInterval time.Duration `mapstructure:"trade_backfill_syncer_interval"`
-	OffchainSyncerInterval      time.Duration `mapstructure:"offchain_event_syncer_interval"`
-	FeatureBuilderInterval      time.Duration `mapstructure:"feature_builder_interval"`
-	ScoreCalculatorInterval     time.Duration `mapstructure:"score_calculator_interval"`
-	AnomalyDetectorInterval     time.Duration `mapstructure:"anomaly_detector_interval"`
-	RunOnStartup                bool          `mapstructure:"run_on_startup"`
-	MaxTradesPerSync            int           `mapstructure:"max_trades_per_sync"`
-	BackfillWalletsPerSync      int           `mapstructure:"backfill_wallets_per_sync"`
-	BackfillPagesPerWallet      int           `mapstructure:"backfill_pages_per_wallet"`
-	BackfillPageSize            int           `mapstructure:"backfill_page_size"`
-	BackfillConcurrency         int           `mapstructure:"backfill_concurrency"`
-	BackfillTargetMinTrades     int64         `mapstructure:"backfill_target_min_trades"`
-	AIBatchEnabled              bool          `mapstructure:"ai_batch_enabled"`
-	AIBatchAnalyzerInterval     time.Duration `mapstructure:"ai_batch_analyzer_interval"`
-	AIBatchSize                 int           `mapstructure:"ai_batch_size"`
-	AIBatchCooldown             time.Duration `mapstructure:"ai_batch_cooldown"`
-	AIBatchRequestSpacing       time.Duration `mapstructure:"ai_batch_request_spacing"`
-	AIBatchMinTrades            int64         `mapstructure:"ai_batch_min_trades"`
-	AIBatchMinRealizedPnL       float64       `mapstructure:"ai_batch_min_realized_pnl"`
-	MaxMarketsPerSync           int           `mapstructure:"max_markets_per_sync"`
-	MaxOffchainEventsPerSync    int           `mapstructure:"max_offchain_events_per_sync"`
+	Enabled                      bool          `mapstructure:"enabled"`
+	MarketSyncerInterval         time.Duration `mapstructure:"market_syncer_interval"`
+	TradeSyncerInterval          time.Duration `mapstructure:"trade_syncer_interval"`
+	TradeSyncerMaxPages          int           `mapstructure:"trade_syncer_max_pages"`
+	TradeSyncerCursorLookback    time.Duration `mapstructure:"trade_syncer_cursor_lookback"`
+	TradeBackfillSyncerInterval  time.Duration `mapstructure:"trade_backfill_syncer_interval"`
+	OffchainSyncerInterval       time.Duration `mapstructure:"offchain_event_syncer_interval"`
+	OffchainSyncerMaxPages       int           `mapstructure:"offchain_event_syncer_max_pages"`
+	OffchainSyncerCursorLookback time.Duration `mapstructure:"offchain_event_syncer_cursor_lookback"`
+	FeatureBuilderInterval       time.Duration `mapstructure:"feature_builder_interval"`
+	ScoreCalculatorInterval      time.Duration `mapstructure:"score_calculator_interval"`
+	AnomalyDetectorInterval      time.Duration `mapstructure:"anomaly_detector_interval"`
+	RunOnStartup                 bool          `mapstructure:"run_on_startup"`
+	MaxTradesPerSync             int           `mapstructure:"max_trades_per_sync"`
+	BackfillWalletsPerSync       int           `mapstructure:"backfill_wallets_per_sync"`
+	BackfillPagesPerWallet       int           `mapstructure:"backfill_pages_per_wallet"`
+	BackfillPageSize             int           `mapstructure:"backfill_page_size"`
+	BackfillConcurrency          int           `mapstructure:"backfill_concurrency"`
+	BackfillTargetMinTrades      int64         `mapstructure:"backfill_target_min_trades"`
+	AIBatchEnabled               bool          `mapstructure:"ai_batch_enabled"`
+	AIBatchAnalyzerInterval      time.Duration `mapstructure:"ai_batch_analyzer_interval"`
+	AIBatchSize                  int           `mapstructure:"ai_batch_size"`
+	AIBatchCooldown              time.Duration `mapstructure:"ai_batch_cooldown"`
+	AIBatchRequestSpacing        time.Duration `mapstructure:"ai_batch_request_spacing"`
+	AIBatchMinTrades             int64         `mapstructure:"ai_batch_min_trades"`
+	AIBatchMinRealizedPnL        float64       `mapstructure:"ai_batch_min_realized_pnl"`
+	MaxMarketsPerSync            int           `mapstructure:"max_markets_per_sync"`
+	MaxOffchainEventsPerSync     int           `mapstructure:"max_offchain_events_per_sync"`
 }
 
 func Load(path string) (*Config, error) {
@@ -110,12 +115,17 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("nova.analysis_cache_hours", "24h")
 	v.SetDefault("polymarket.gamma_api_url", "https://gamma-api.polymarket.com")
 	v.SetDefault("polymarket.data_api_url", "https://data-api.polymarket.com")
+	v.SetDefault("polymarket.offchain_events_url", "https://gamma-api.polymarket.com")
 	v.SetDefault("polymarket.request_timeout", "20s")
 	v.SetDefault("worker.enabled", false)
 	v.SetDefault("worker.market_syncer_interval", "10m")
 	v.SetDefault("worker.trade_syncer_interval", "5m")
+	v.SetDefault("worker.trade_syncer_max_pages", 20)
+	v.SetDefault("worker.trade_syncer_cursor_lookback", "2m")
 	v.SetDefault("worker.trade_backfill_syncer_interval", "5m")
 	v.SetDefault("worker.offchain_event_syncer_interval", "15m")
+	v.SetDefault("worker.offchain_event_syncer_max_pages", 5)
+	v.SetDefault("worker.offchain_event_syncer_cursor_lookback", "2h")
 	v.SetDefault("worker.feature_builder_interval", "30m")
 	v.SetDefault("worker.score_calculator_interval", "1h")
 	v.SetDefault("worker.anomaly_detector_interval", "10m")
@@ -173,13 +183,18 @@ func Load(path string) (*Config, error) {
 
 	cfg.Polymarket.GammaAPIURL = v.GetString("polymarket.gamma_api_url")
 	cfg.Polymarket.DataAPIURL = v.GetString("polymarket.data_api_url")
+	cfg.Polymarket.OffchainEventsURL = v.GetString("polymarket.offchain_events_url")
 	cfg.Polymarket.RequestTO = v.GetDuration("polymarket.request_timeout")
 
 	cfg.Worker.Enabled = v.GetBool("worker.enabled")
 	cfg.Worker.MarketSyncerInterval = v.GetDuration("worker.market_syncer_interval")
 	cfg.Worker.TradeSyncerInterval = v.GetDuration("worker.trade_syncer_interval")
+	cfg.Worker.TradeSyncerMaxPages = v.GetInt("worker.trade_syncer_max_pages")
+	cfg.Worker.TradeSyncerCursorLookback = v.GetDuration("worker.trade_syncer_cursor_lookback")
 	cfg.Worker.TradeBackfillSyncerInterval = v.GetDuration("worker.trade_backfill_syncer_interval")
 	cfg.Worker.OffchainSyncerInterval = v.GetDuration("worker.offchain_event_syncer_interval")
+	cfg.Worker.OffchainSyncerMaxPages = v.GetInt("worker.offchain_event_syncer_max_pages")
+	cfg.Worker.OffchainSyncerCursorLookback = v.GetDuration("worker.offchain_event_syncer_cursor_lookback")
 	cfg.Worker.FeatureBuilderInterval = v.GetDuration("worker.feature_builder_interval")
 	cfg.Worker.ScoreCalculatorInterval = v.GetDuration("worker.score_calculator_interval")
 	cfg.Worker.AnomalyDetectorInterval = v.GetDuration("worker.anomaly_detector_interval")

@@ -31,14 +31,19 @@ nova:
 polymarket:
   gamma_api_url: https://gamma-api.polymarket.com
   data_api_url: https://data-api.polymarket.com
+  offchain_events_url: https://gamma-api.polymarket.com
   request_timeout: 20s
 
 worker:
   enabled: true
   market_syncer_interval: 10m
   trade_syncer_interval: 5m
+  trade_syncer_max_pages: 20
+  trade_syncer_cursor_lookback: 2m
   trade_backfill_syncer_interval: 5m
   offchain_event_syncer_interval: 15m
+  offchain_event_syncer_max_pages: 5
+  offchain_event_syncer_cursor_lookback: 2h
   feature_builder_interval: 30m
   score_calculator_interval: 1h
   anomaly_detector_interval: 10m

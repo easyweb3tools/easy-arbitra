@@ -6,6 +6,10 @@ const messages: Record<Locale, Record<string, string>> = {
   en: {
     "app.subtitle": "Polymarket Smart Wallet Analyzer",
     "nav.dashboard": "Dashboard",
+    "nav.discover": "Discover",
+    "nav.explore": "Explore",
+    "nav.tracking": "Tracking",
+    "nav.more": "More",
     "nav.wallets": "Wallets",
     "nav.watchlist": "Watchlist",
     "nav.markets": "Markets",
@@ -132,6 +136,10 @@ const messages: Record<Locale, Record<string, string>> = {
   zh: {
     "app.subtitle": "Polymarket 智能钱包分析器",
     "nav.dashboard": "总览",
+    "nav.discover": "发现",
+    "nav.explore": "探索",
+    "nav.tracking": "跟踪",
+    "nav.more": "更多",
     "nav.wallets": "钱包",
     "nav.watchlist": "关注",
     "nav.markets": "市场",

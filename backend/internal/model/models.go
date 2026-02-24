@@ -68,14 +68,15 @@ type TradeFill struct {
 func (TradeFill) TableName() string { return "trade_fill" }
 
 type OffchainEvent struct {
-	ID        int64          `gorm:"primaryKey" json:"id"`
-	MarketID  *int64         `gorm:"index" json:"market_id,omitempty"`
-	EventTime time.Time      `gorm:"index" json:"event_time"`
-	EventType string         `gorm:"size:30" json:"event_type"`
-	Source    string         `gorm:"size:100" json:"source_name"`
-	Title     string         `json:"title"`
-	Payload   datatypes.JSON `gorm:"type:jsonb" json:"payload"`
-	CreatedAt time.Time      `json:"created_at"`
+	ID            int64          `gorm:"primaryKey" json:"id"`
+	MarketID      *int64         `gorm:"index" json:"market_id,omitempty"`
+	SourceEventID string         `gorm:"column:source_event_id;size:120;default:''" json:"source_event_id"`
+	EventTime     time.Time      `gorm:"index" json:"event_time"`
+	EventType     string         `gorm:"size:30" json:"event_type"`
+	Source        string         `gorm:"column:source_name;size:100" json:"source_name"`
+	Title         string         `json:"title"`
+	Payload       datatypes.JSON `gorm:"type:jsonb" json:"payload"`
+	CreatedAt     time.Time      `json:"created_at"`
 }
 
 func (OffchainEvent) TableName() string { return "offchain_event" }
@@ -105,6 +106,12 @@ type WalletScore struct {
 	InfoEdgeLevel      string         `gorm:"size:20" json:"info_edge_level"`
 	InfoEdgeConfidence float64        `json:"info_edge_confidence"`
 	SmartScore         int            `json:"smart_score"`
+	PoolTier           string         `gorm:"size:20;default:observation" json:"pool_tier"`
+	PoolTierUpdatedAt  *time.Time     `json:"pool_tier_updated_at,omitempty"`
+	SuitableFor        string         `gorm:"size:50" json:"suitable_for"`
+	RiskLevel          string         `gorm:"size:10" json:"risk_level"`
+	SuggestedPosition  string         `gorm:"size:20" json:"suggested_position"`
+	Momentum           string         `gorm:"size:20" json:"momentum"`
 	ScoringDetail      datatypes.JSON `gorm:"type:jsonb" json:"scoring_detail"`
 	CreatedAt          time.Time      `json:"created_at"`
 }
@@ -150,11 +157,49 @@ type Watchlist struct {
 func (Watchlist) TableName() string { return "watchlist" }
 
 type WalletUpdateEvent struct {
-	ID        int64          `gorm:"primaryKey" json:"id"`
-	WalletID  int64          `gorm:"index" json:"wallet_id"`
-	EventType string         `gorm:"size:40;index" json:"event_type"`
-	Payload   datatypes.JSON `gorm:"type:jsonb" json:"payload"`
-	CreatedAt time.Time      `json:"created_at"`
+	ID             int64          `gorm:"primaryKey" json:"id"`
+	WalletID       int64          `gorm:"index" json:"wallet_id"`
+	EventType      string         `gorm:"size:40;index" json:"event_type"`
+	Payload        datatypes.JSON `gorm:"type:jsonb" json:"payload"`
+	ActionRequired bool           `gorm:"default:false" json:"action_required"`
+	Suggestion     *string        `json:"suggestion,omitempty"`
+	SuggestionZh   *string        `json:"suggestion_zh,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
 }
 
 func (WalletUpdateEvent) TableName() string { return "wallet_update_event" }
+
+type Portfolio struct {
+	ID          int64          `gorm:"primaryKey" json:"id"`
+	Name        string         `gorm:"size:100" json:"name"`
+	NameZh      *string        `gorm:"size:100" json:"name_zh,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	RiskLevel   string         `gorm:"size:10" json:"risk_level"`
+	WalletIDs   datatypes.JSON `gorm:"type:jsonb;not null" json:"wallet_ids"`
+	IsActive    bool           `gorm:"default:true" json:"is_active"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
+func (Portfolio) TableName() string { return "portfolio" }
+
+type IngestCursor struct {
+	Source      string    `gorm:"primaryKey;size:100" json:"source"`
+	Stream      string    `gorm:"primaryKey;size:120" json:"stream"`
+	CursorValue string    `gorm:"type:text;not null" json:"cursor_value"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (IngestCursor) TableName() string { return "ingest_cursor" }
+
+type IngestRun struct {
+	ID        int64          `gorm:"primaryKey" json:"id"`
+	JobName   string         `gorm:"type:text;not null" json:"job_name"`
+	StartedAt time.Time      `json:"started_at"`
+	EndedAt   *time.Time     `json:"ended_at,omitempty"`
+	Status    string         `gorm:"type:text;not null" json:"status"`
+	Stats     datatypes.JSON `gorm:"type:jsonb;not null" json:"stats"`
+	ErrorText *string        `json:"error_text,omitempty"`
+}
+
+func (IngestRun) TableName() string { return "ingest_run" }

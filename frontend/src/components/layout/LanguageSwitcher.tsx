@@ -6,7 +6,7 @@ import { LOCALE_COOKIE, type Locale } from "@/lib/i18n";
 export function LanguageSwitcher({
   locale,
   enLabel,
-  zhLabel
+  zhLabel,
 }: {
   locale: Locale;
   enLabel: string;
@@ -20,18 +20,33 @@ export function LanguageSwitcher({
   }
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white p-1">
+    <div
+      className="flex items-center rounded-full p-0.5"
+      style={{ background: "var(--surface-tertiary)" }}
+    >
       <button
         type="button"
         onClick={() => setLocale("en")}
-        className={`rounded px-2 py-1 text-xs font-medium ${locale === "en" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+        className={[
+          "rounded-full px-3 py-1.5 text-caption-1 font-medium",
+          "transition-all duration-200 ease-apple",
+          locale === "en"
+            ? "bg-surface-secondary text-label-primary shadow-elevation-1"
+            : "text-label-tertiary hover:text-label-secondary",
+        ].join(" ")}
       >
         {enLabel}
       </button>
       <button
         type="button"
         onClick={() => setLocale("zh")}
-        className={`rounded px-2 py-1 text-xs font-medium ${locale === "zh" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+        className={[
+          "rounded-full px-3 py-1.5 text-caption-1 font-medium",
+          "transition-all duration-200 ease-apple",
+          locale === "zh"
+            ? "bg-surface-secondary text-label-primary shadow-elevation-1"
+            : "text-label-tertiary hover:text-label-secondary",
+        ].join(" ")}
       >
         {zhLabel}
       </button>

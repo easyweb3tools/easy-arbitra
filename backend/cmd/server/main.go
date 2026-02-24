@@ -72,6 +72,9 @@ func main() {
 			&model.AnomalyAlert{},
 			&model.Watchlist{},
 			&model.WalletUpdateEvent{},
+			&model.Portfolio{},
+			&model.IngestCursor{},
+			&model.IngestRun{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
@@ -86,20 +89,24 @@ func main() {
 	anomalyRepo := repository.NewAnomalyRepository(db)
 	aiReportRepo := repository.NewAIReportRepository(db)
 	watchlistRepo := repository.NewWatchlistRepository(db)
+	portfolioRepo := repository.NewPortfolioRepository(db)
+	offchainEventRepo := repository.NewOffchainEventRepository(db)
+	ingestCursorRepo := repository.NewIngestCursorRepository(db)
 
 	infoEdgeService := service.NewInfoEdgeService(tradeRepo)
-	walletService := service.NewWalletService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, infoEdgeService)
+	walletService := service.NewWalletService(walletRepo, scoreRepo, tradeRepo, featureRepo, aiReportRepo, watchlistRepo, infoEdgeService)
 	marketService := service.NewMarketService(marketRepo)
 	statsService := service.NewStatsService(walletRepo, marketRepo, scoreRepo)
 	anomalyService := service.NewAnomalyService(anomalyRepo, walletRepo, tradeRepo, infoEdgeService)
 	explainService := service.NewExplanationService(walletRepo, featureRepo, scoreRepo, tradeRepo, infoEdgeService)
 	watchlistService := service.NewWatchlistService(walletRepo, watchlistRepo)
+	portfolioService := service.NewPortfolioService(portfolioRepo, walletRepo, scoreRepo, tradeRepo)
 	classifier := service.NewClassificationService(featureRepo, scoreRepo)
 	analyzer := ai.NewAnalyzer(cfg.Nova, lg)
 	aiService := service.NewAIService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, watchlistRepo, analyzer, cfg.Nova.AnalysisCacheHours)
 
 	h := handler.New(
-		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService,
+		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService, portfolioService,
 		func(c *gin.Context) error {
 			return sqlDB.PingContext(c.Request.Context())
 		},
@@ -112,13 +119,31 @@ func main() {
 	if cfg.Worker.Enabled {
 		gammaClient := client.NewGammaClient(cfg.Polymarket.GammaAPIURL, cfg.Polymarket.RequestTO)
 		dataClient := client.NewDataAPIClient(cfg.Polymarket.DataAPIURL, cfg.Polymarket.RequestTO)
-		offchainClient := client.NewOffchainClient()
+		offchainClient := client.NewOffchainClient(cfg.Polymarket.OffchainEventsURL, cfg.Polymarket.RequestTO)
 
 		jobs := []worker.ScheduledSyncer{
 			worker.ScheduledSyncer{Syncer: worker.NewMarketSyncer(gammaClient, marketRepo, cfg.Worker.MaxMarketsPerSync), Interval: cfg.Worker.MarketSyncerInterval},
-			worker.ScheduledSyncer{Syncer: worker.NewTradeSyncer(dataClient, walletRepo, marketRepo, tokenRepo, tradeRepo, cfg.Worker.MaxTradesPerSync), Interval: cfg.Worker.TradeSyncerInterval},
+			worker.ScheduledSyncer{Syncer: worker.NewTradeSyncer(
+				dataClient,
+				walletRepo,
+				marketRepo,
+				tokenRepo,
+				tradeRepo,
+				ingestCursorRepo,
+				cfg.Worker.MaxTradesPerSync,
+				cfg.Worker.TradeSyncerMaxPages,
+				cfg.Worker.TradeSyncerCursorLookback,
+			), Interval: cfg.Worker.TradeSyncerInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewTradeBackfillSyncer(dataClient, walletRepo, marketRepo, tokenRepo, tradeRepo, cfg.Worker.BackfillWalletsPerSync, cfg.Worker.BackfillPagesPerWallet, cfg.Worker.BackfillPageSize, cfg.Worker.BackfillConcurrency, cfg.Worker.BackfillTargetMinTrades), Interval: cfg.Worker.TradeBackfillSyncerInterval},
-			worker.ScheduledSyncer{Syncer: worker.NewOffchainEventSyncer(offchainClient, cfg.Worker.MaxOffchainEventsPerSync), Interval: cfg.Worker.OffchainSyncerInterval},
+			worker.ScheduledSyncer{Syncer: worker.NewOffchainEventSyncer(
+				offchainClient,
+				marketRepo,
+				offchainEventRepo,
+				ingestCursorRepo,
+				cfg.Worker.MaxOffchainEventsPerSync,
+				cfg.Worker.OffchainSyncerMaxPages,
+				cfg.Worker.OffchainSyncerCursorLookback,
+			), Interval: cfg.Worker.OffchainSyncerInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewFeatureBuilder(featureRepo), Interval: cfg.Worker.FeatureBuilderInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewScoreCalculator(walletRepo, classifier), Interval: cfg.Worker.ScoreCalculatorInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewAnomalyDetector(anomalyService), Interval: cfg.Worker.AnomalyDetectorInterval},

@@ -20,6 +20,7 @@ type Handlers struct {
 	infoEdge         *service.InfoEdgeService
 	aiService        *service.AIService
 	watchlistService *service.WatchlistService
+	portfolioService *service.PortfolioService
 	readyCheck       func(*gin.Context) error
 }
 
@@ -32,11 +33,13 @@ func New(
 	infoEdge *service.InfoEdgeService,
 	aiService *service.AIService,
 	watchlistService *service.WatchlistService,
+	portfolioService *service.PortfolioService,
 	readyCheck func(*gin.Context) error,
 ) *Handlers {
 	return &Handlers{
 		walletService: walletService, marketService: marketService, statsService: statsService, anomalyService: anomalyService,
-		explainService: explainService, infoEdge: infoEdge, aiService: aiService, watchlistService: watchlistService, readyCheck: readyCheck,
+		explainService: explainService, infoEdge: infoEdge, aiService: aiService, watchlistService: watchlistService,
+		portfolioService: portfolioService, readyCheck: readyCheck,
 	}
 }
 
@@ -99,12 +102,26 @@ func (h *Handlers) ListPotentialWallets(c *gin.Context) {
 		response.BadRequest(c, "invalid min_realized_pnl")
 		return
 	}
+	var hasAIReport *bool
+	if raw := strings.TrimSpace(c.Query("has_ai_report")); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			response.BadRequest(c, "invalid has_ai_report")
+			return
+		}
+		hasAIReport = &v
+	}
 
 	rows, err := h.walletService.ListPotential(c.Request.Context(), service.PotentialWalletListQuery{
 		Page:           page,
 		PageSize:       pageSize,
 		MinTrades:      minTrades,
 		MinRealizedPnL: minRealizedPnL,
+		StrategyType:   strings.TrimSpace(c.Query("strategy_type")),
+		PoolTier:       strings.TrimSpace(c.Query("pool_tier")),
+		HasAIReport:    hasAIReport,
+		SortBy:         strings.TrimSpace(c.DefaultQuery("sort_by", "trade_count")),
+		Order:          strings.TrimSpace(c.DefaultQuery("order", "desc")),
 	})
 	if err != nil {
 		response.Internal(c, err.Error())
@@ -400,6 +417,32 @@ func (h *Handlers) AddToWatchlist(c *gin.Context) {
 	response.Created(c, gin.H{"wallet_id": req.WalletID, "watching": true})
 }
 
+func (h *Handlers) AddToWatchlistBatch(c *gin.Context) {
+	var req struct {
+		WalletIDs []int64 `json:"wallet_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid body")
+		return
+	}
+	if len(req.WalletIDs) == 0 {
+		response.BadRequest(c, "wallet_ids is required")
+		return
+	}
+	created := make([]int64, 0, len(req.WalletIDs))
+	for _, walletID := range req.WalletIDs {
+		if walletID <= 0 {
+			continue
+		}
+		if err := h.watchlistService.AddByWalletID(c.Request.Context(), walletID, userFingerprint(c)); err != nil && err != service.ErrNotFound {
+			response.Internal(c, err.Error())
+			return
+		}
+		created = append(created, walletID)
+	}
+	response.Created(c, gin.H{"wallet_ids": created, "watching": true})
+}
+
 func (h *Handlers) RemoveFromWatchlist(c *gin.Context) {
 	walletID, err := strconv.ParseInt(c.Param("wallet_id"), 10, 64)
 	if err != nil || walletID <= 0 {
@@ -435,6 +478,15 @@ func (h *Handlers) GetWatchlistFeed(c *gin.Context) {
 		UserFingerprint: userFingerprint(c),
 		EventType:       strings.TrimSpace(c.Query("type")),
 	})
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
+func (h *Handlers) GetWatchlistSummary(c *gin.Context) {
+	rows, err := h.watchlistService.Summary(c.Request.Context(), userFingerprint(c))
 	if err != nil {
 		response.Internal(c, err.Error())
 		return

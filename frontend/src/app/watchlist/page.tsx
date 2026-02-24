@@ -8,6 +8,7 @@ export default async function WatchlistPage() {
   const locale = await getLocaleFromCookies();
   return (
     <WatchlistPageClient
+      locale={locale}
       labels={{
         title: t(locale, "watchlist.title"),
         feedTitle: t(locale, "watchlist.feedTitle"),
@@ -17,7 +18,7 @@ export default async function WatchlistPage() {
         score: t(locale, "home.score"),
         loading: t(locale, "watchlist.loading"),
         eventType: t(locale, "watchlist.eventType"),
-        eventTime: t(locale, "watchlist.eventTime")
+        eventTime: t(locale, "watchlist.eventTime"),
       }}
     />
   );

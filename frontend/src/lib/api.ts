@@ -7,12 +7,16 @@ import {
   OpsHighlights,
   OverviewStats,
   Paged,
+  PortfolioItem,
   PotentialWallet,
   Wallet,
+  WalletDecisionCard,
   WatchlistFeedItem,
   WatchlistItem,
+  WatchlistSummary,
   WalletExplanation,
   WalletProfile,
+  WalletShareLanding,
   WalletShareCard
 } from "@/lib/types";
 
@@ -48,6 +52,14 @@ export function getWalletShareCard(id: string) {
   return getJSON<WalletShareCard>(`/wallets/${id}/share-card`);
 }
 
+export function getWalletDecisionCard(id: string) {
+  return getJSON<WalletDecisionCard>(`/wallets/${id}/decision-card`);
+}
+
+export function getWalletShareLanding(id: string) {
+  return getJSON<WalletShareLanding>(`/wallets/${id}/share-landing`);
+}
+
 export function getWalletExplanation(id: string) {
   return getJSON<WalletExplanation>(`/wallets/${id}/explanations`);
 }
@@ -79,6 +91,10 @@ export function getLeaderboard(params: URLSearchParams) {
   return getJSON<Paged<LeaderboardItem>>(`/leaderboard${q ? `?${q}` : ""}`);
 }
 
+export function getPortfolios() {
+  return getJSON<PortfolioItem[]>("/portfolios");
+}
+
 export function getAnomalies(params: URLSearchParams) {
   const q = params.toString();
   return getJSON<Paged<AnomalyAlert>>(`/anomalies${q ? `?${q}` : ""}`);
@@ -95,10 +111,27 @@ export function getWatchlist(params: URLSearchParams, fingerprint: string) {
   });
 }
 
+export function getWatchlistSummary(fingerprint: string) {
+  return getJSON<WatchlistSummary>("/watchlist/summary", {
+    headers: { "X-User-Fingerprint": fingerprint }
+  });
+}
+
 export function getWatchlistFeed(params: URLSearchParams, fingerprint: string) {
   const q = params.toString();
   return getJSON<Paged<WatchlistFeedItem>>(`/watchlist/feed${q ? `?${q}` : ""}`, {
     headers: { "X-User-Fingerprint": fingerprint }
+  });
+}
+
+export async function addBatchToWatchlist(walletIDs: number[], fingerprint: string) {
+  return getJSON<{ wallet_ids: number[]; watching: boolean }>(`/watchlist/batch`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Fingerprint": fingerprint
+    },
+    body: JSON.stringify({ wallet_ids: walletIDs })
   });
 }
 
