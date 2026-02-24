@@ -1,5 +1,20 @@
 # Repository Guidelines
 
+## Current Product Architecture Snapshot
+- Product focus: wallet discovery -> decision -> follow conversion.
+- Frontend routes:
+  - `/`: featured wallets, starter portfolios, real-time signals.
+  - `/wallets`: exploration with strategy/pool tier/AI filters and sorting.
+  - `/wallets/[id]`: decision card, AI analysis, evidence, share card.
+  - `/watchlist`: portfolio summary + action-required feed + normal updates.
+  - `/s/[id]`: share landing page for external traffic conversion.
+  - `/leaderboard`: redirected to `/wallets?sort_by=smart_score&order=desc`.
+- Backend API highlights:
+  - Wallet: `/wallets/potential`, `/wallets/:id/profile`, `/wallets/:id/decision-card`, `/wallets/:id/share-landing`.
+  - Watchlist: `/watchlist`, `/watchlist/batch`, `/watchlist/feed`, `/watchlist/summary`.
+  - Discovery: `/ops/highlights`, `/portfolios`, `/stats/overview`.
+  - AI: `/ai/analyze/:wallet_id`, `/ai/report/:wallet_id`, `/ai/report/:wallet_id/history`.
+
 ## Project Structure & Module Organization
 - `backend/`: Go API, workers, data ingestion, and AI analysis.
   - `cmd/server`: HTTP server entrypoint.
@@ -7,11 +22,11 @@
   - `internal/`: domain modules (`api`, `service`, `repository`, `worker`, `client`, `ai`).
   - `migrations/`: ordered SQL migrations (`001_*.sql`, `002_*.sql`, ...).
 - `frontend/`: Next.js App Router UI.
-  - `src/app/`: route pages (`/wallets`, `/markets`, `/anomalies`, etc.).
-  - `src/components/`: reusable UI components.
-  - `src/lib/`: API client and shared types.
+  - `src/app/`: route pages (`/`, `/wallets`, `/wallets/[id]`, `/watchlist`, `/s/[id]`, etc.).
+  - `src/components/`: reusable UI components by domain (`wallet`, `watchlist`, `portfolio`, `share`, `ui`).
+  - `src/lib/`: API client, i18n, and shared types.
 - `scripts/`: local smoke/bootstrap scripts.
-- `ops/`: backup and monitoring helpers.
+- `ops/`: nginx and operational helpers.
 - `.github/workflows/`: CI, release, and smoke pipelines.
 
 ## Build, Test, and Development Commands
@@ -31,7 +46,7 @@
 - TypeScript/React: strict types, small components, server-first pages unless interactivity is needed.
 - Naming:
   - Files: snake_case in Go (`info_edge_service.go`), route folders in Next.js (`wallets/[id]`).
-  - Migrations: numeric prefix + purpose (`003_anomaly_and_feature_ext.sql`).
+  - Migrations: numeric prefix + purpose (`006_product_rebuild.sql`).
 
 ## Testing Guidelines
 - Go tests use `testing` package; files end with `_test.go`.
@@ -40,14 +55,15 @@
 - Minimum local gate before PR: backend tests + frontend build + smoke scripts.
 
 ## Commit & Pull Request Guidelines
-- Commit format: short imperative summary (e.g., `Add info-edge API and anomaly detail route`).
+- Commit format: short imperative summary (e.g., `Add decision card and portfolio APIs`).
 - Prefer small, focused commits by concern (API, UI, migration, CI).
 - PR must include:
   - What changed and why.
   - Migration/config impact.
   - Verification steps and command output summary.
-  - Screenshots/GIFs for UI changes (`/wallets`, `/anomalies`, etc.).
+  - Screenshots/GIFs for UI changes (`/`, `/wallets`, `/watchlist`, `/s/[id]`, etc.).
 
 ## Security & Configuration Tips
-- Never commit secrets. Use env vars (`DATABASE_*`, `AWS_*`) and `.env` from `.env.example`.
+- Never commit secrets. Use env vars (`DATABASE_*`, `AWS_*`, `NOVA_*`) and `.env` from `.env.example`.
 - Default to `DATABASE_AUTO_MIGRATE=false` in Docker; use `cmd/migrate` for deterministic schema changes.
+- Docker note: `frontend` mounts `/app/node_modules`; if dependencies change and frontend fails at runtime, recreate the frontend service with volume cleanup.
