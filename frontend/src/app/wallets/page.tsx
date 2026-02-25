@@ -10,6 +10,9 @@ import { WalletCard } from "@/components/wallet/WalletCard";
 
 export const dynamic = "force-dynamic";
 
+const inputClasses =
+  "h-10 w-full rounded-xl border border-separator/50 bg-surface-secondary px-3.5 text-subheadline text-label-primary shadow-elevation-1 transition-all duration-200 ease-apple focus:border-tint-blue/40 focus:shadow-[var(--input-focus-ring)]";
+
 export default async function WalletsPage({
   searchParams,
 }: {
@@ -56,40 +59,25 @@ export default async function WalletsPage({
   };
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 animate-fade-in">
+      {/* ── Filters ── */}
       <Card variant="flat">
-        <form className="grid gap-3 p-4 md:grid-cols-6" method="get">
+        <form className="grid gap-4 p-5 md:grid-cols-6" method="get">
           <div className="md:col-span-6">
             <StrategyTabs current={searchParams.strategy_type} makeHref={makeStrategyHref} />
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-caption-1 text-label-tertiary">{t(locale, "wallets.minTrades")}</label>
-            <input
-              name="min_trades"
-              type="number"
-              min="1"
-              defaultValue={searchParams.min_trades || "100"}
-              className="h-9 w-full rounded-md border-0 bg-surface-secondary px-3 text-subheadline text-label-primary shadow-elevation-1"
-            />
+            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">{t(locale, "wallets.minTrades")}</label>
+            <input name="min_trades" type="number" min="1" defaultValue={searchParams.min_trades || "100"} className={inputClasses} />
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-caption-1 text-label-tertiary">{t(locale, "wallets.minPnl")}</label>
-            <input
-              name="min_realized_pnl"
-              type="number"
-              step="0.01"
-              defaultValue={searchParams.min_realized_pnl || "0"}
-              className="h-9 w-full rounded-md border-0 bg-surface-secondary px-3 text-subheadline text-label-primary shadow-elevation-1"
-            />
+            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">{t(locale, "wallets.minPnl")}</label>
+            <input name="min_realized_pnl" type="number" step="0.01" defaultValue={searchParams.min_realized_pnl || "0"} className={inputClasses} />
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-caption-1 text-label-tertiary">Pool tier</label>
-            <select
-              name="pool_tier"
-              defaultValue={searchParams.pool_tier || ""}
-              className="h-9 w-full rounded-md border-0 bg-surface-secondary px-3 text-subheadline text-label-primary shadow-elevation-1"
-            >
+            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">Pool tier</label>
+            <select name="pool_tier" defaultValue={searchParams.pool_tier || ""} className={inputClasses}>
               <option value="">All</option>
               <option value="star">Star</option>
               <option value="strategy">Strategy</option>
@@ -97,12 +85,8 @@ export default async function WalletsPage({
             </select>
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-caption-1 text-label-tertiary">Sort by</label>
-            <select
-              name="sort_by"
-              defaultValue={searchParams.sort_by || "smart_score"}
-              className="h-9 w-full rounded-md border-0 bg-surface-secondary px-3 text-subheadline text-label-primary shadow-elevation-1"
-            >
+            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">Sort by</label>
+            <select name="sort_by" defaultValue={searchParams.sort_by || "smart_score"} className={inputClasses}>
               <option value="smart_score">Smart score</option>
               <option value="realized_pnl">Realized PnL</option>
               <option value="trade_count">Trade count</option>
@@ -110,31 +94,26 @@ export default async function WalletsPage({
             </select>
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1 block text-caption-1 text-label-tertiary">AI report</label>
-            <select
-              name="has_ai_report"
-              defaultValue={searchParams.has_ai_report || ""}
-              className="h-9 w-full rounded-md border-0 bg-surface-secondary px-3 text-subheadline text-label-primary shadow-elevation-1"
-            >
+            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">AI report</label>
+            <select name="has_ai_report" defaultValue={searchParams.has_ai_report || ""} className={inputClasses}>
               <option value="">All</option>
               <option value="true">With AI</option>
               <option value="false">No AI</option>
             </select>
           </div>
           <div className="md:col-span-1">
-            <label className="mb-1 block text-caption-1 text-label-tertiary">Order</label>
-            <select
-              name="order"
-              defaultValue={searchParams.order || "desc"}
-              className="h-9 w-full rounded-md border-0 bg-surface-secondary px-3 text-subheadline text-label-primary shadow-elevation-1"
-            >
+            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">Order</label>
+            <select name="order" defaultValue={searchParams.order || "desc"} className={inputClasses}>
               <option value="desc">Desc</option>
               <option value="asc">Asc</option>
             </select>
           </div>
           <div className="flex items-end md:col-span-1">
-            <button className="inline-flex h-9 w-full items-center justify-center rounded-md bg-tint-blue px-5 text-subheadline font-semibold text-white" type="submit">
-              <Filter className="mr-1.5 h-4 w-4" /> {t(locale, "wallets.apply")}
+            <button
+              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-tint-blue px-5 text-subheadline font-semibold text-white shadow-[0_1px_3px_rgba(0,122,255,0.25)] transition-all duration-200 ease-apple hover:shadow-[0_4px_12px_rgba(0,122,255,0.3)] active:scale-[0.97]"
+              type="submit"
+            >
+              <Filter className="h-4 w-4" /> {t(locale, "wallets.apply")}
             </button>
           </div>
 
@@ -146,6 +125,7 @@ export default async function WalletsPage({
         </form>
       </Card>
 
+      {/* ── Summary Stats ── */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <StatCell label={t(locale, "wallets.potentialCount")} value={String(wallets.pagination.total)} size="large" />
@@ -154,18 +134,18 @@ export default async function WalletsPage({
           <StatCell label={t(locale, "wallets.analyzedPage")} value={String(analyzedCount)} numericValue={analyzedCount} color="positive" />
         </Card>
         <Card>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-caption-1 text-label-tertiary">Pool distribution</span>
-            <span className="text-subheadline font-medium text-label-secondary">
+          <div className="flex flex-col gap-1">
+            <span className="text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">Pool distribution</span>
+            <span className="text-subheadline font-semibold text-label-secondary tabular-nums">
               Star {wallets.items.filter((i) => i.pool_tier === "star").length} · Strategy {wallets.items.filter((i) => i.pool_tier === "strategy").length}
             </span>
           </div>
         </Card>
       </div>
 
+      {/* ── Wallet List ── */}
       <div>
         <SectionHeader title={t(locale, "wallets.title")} />
-        <p className="mb-3 text-footnote text-label-tertiary">Now merged with ranking filters to support direct follow decisions.</p>
         <Card padding={false}>
           {wallets.items.map((item) => (
             <WalletCard

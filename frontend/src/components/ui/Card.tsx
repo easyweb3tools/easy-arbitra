@@ -2,15 +2,17 @@ import type { ReactNode } from "react";
 
 /* ── Card Variants ── */
 
-type Variant = "grouped" | "prominent" | "flat";
+type Variant = "grouped" | "prominent" | "flat" | "glass";
 
 const variantClasses: Record<Variant, string> = {
   grouped:
-    "bg-surface-secondary rounded-lg shadow-elevation-1 overflow-hidden",
+    "bg-surface-secondary rounded-xl shadow-elevation-1 overflow-hidden hover:shadow-[var(--card-hover-shadow)]",
   prominent:
-    "bg-surface-secondary rounded-xl shadow-elevation-2 overflow-hidden",
+    "bg-surface-secondary rounded-2xl shadow-elevation-2 overflow-hidden hover:shadow-[var(--card-hover-shadow)]",
   flat:
-    "bg-surface-tertiary rounded-lg overflow-hidden",
+    "bg-surface-tertiary/60 rounded-xl overflow-hidden border border-separator/50",
+  glass:
+    "backdrop-blur-xl bg-surface-secondary/60 rounded-2xl shadow-elevation-2 overflow-hidden border border-separator/30",
 };
 
 export function Card({
@@ -29,7 +31,7 @@ export function Card({
       className={[
         variantClasses[variant],
         padding ? "p-5 sm:p-6" : "",
-        "transition-shadow duration-200 ease-apple",
+        "transition-all duration-300 ease-apple",
         className,
       ].join(" ")}
     >
@@ -50,11 +52,11 @@ export function CardRow({
   children: ReactNode;
 }) {
   const classes = [
-    "flex items-center gap-3 px-4 py-3",
-    "border-b border-separator last:border-b-0",
-    "min-h-[44px]",
-    "transition-colors duration-150 ease-apple",
-    href ? "hover:bg-surface-tertiary cursor-pointer" : "",
+    "flex items-center gap-3 px-5 py-3.5",
+    "border-b border-separator/60 last:border-b-0",
+    "min-h-[48px]",
+    "transition-all duration-200 ease-apple",
+    href ? "hover:bg-surface-tertiary/70 cursor-pointer active:bg-surface-tertiary" : "",
     className,
   ].join(" ");
 
@@ -79,7 +81,7 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between pb-2">
+    <div className="flex items-center justify-between pb-3">
       <h2 className="text-title-3 text-label-primary">{title}</h2>
       {action}
     </div>

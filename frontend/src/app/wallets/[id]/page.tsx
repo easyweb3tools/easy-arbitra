@@ -52,18 +52,19 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
   const warnings = aiReport ? toRiskWarnings(aiReport) : [];
 
   return (
-    <section className="space-y-6 animate-fade-in">
+    <section className="space-y-8 animate-fade-in">
+      {/* ── Profile Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-title-1 text-label-primary">{profile.wallet.pseudonym || profile.wallet.address}</h1>
-          <p className="mt-0.5 truncate font-mono text-footnote text-label-tertiary">{profile.wallet.address}</p>
+          <h1 className="text-title-1 tracking-tight text-label-primary">{profile.wallet.pseudonym || profile.wallet.address}</h1>
+          <p className="mt-1 truncate font-mono text-footnote text-label-quaternary">{profile.wallet.address}</p>
           {profile.strategy && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
               <CategoryTag>{profile.strategy.strategy_type}</CategoryTag>
               <span className="text-footnote text-label-tertiary">
-                Score <span className="font-semibold text-label-secondary">{profile.strategy.smart_score}</span>
+                Score <span className="font-bold tabular-nums text-label-primary">{profile.strategy.smart_score}</span>
               </span>
-              <span className="text-footnote text-label-tertiary">·</span>
+              <span className="h-3.5 w-px bg-separator" />
               <span className="text-footnote text-label-tertiary">{profile.strategy.info_edge_level}</span>
             </div>
           )}
@@ -79,21 +80,23 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         />
       </div>
 
+      {/* ── Decision Card ── */}
       <DecisionCard card={decisionCard} locale={locale} />
 
+      {/* ── Recent Events ── */}
       {profile.recent_events && profile.recent_events.length > 0 && (
         <div>
           <SectionHeader title={locale === "zh" ? "近期动态" : "Recent Events"} />
           <Card padding={false}>
             {profile.recent_events.slice(0, 6).map((event) => (
-              <div key={`${event.event_type}-${event.event_id}`} className="border-b border-separator px-4 py-3 last:border-b-0">
+              <div key={`${event.event_type}-${event.event_id}`} className="border-b border-separator/60 px-5 py-4 last:border-b-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-subheadline text-label-secondary">{event.event_type}</p>
+                  <p className="text-subheadline font-medium text-label-primary">{event.event_type}</p>
                   {event.action_required && (
-                    <span className="rounded-full bg-tint-red/10 px-2 py-0.5 text-caption-1 text-tint-red">{locale === "zh" ? "需行动" : "Action"}</span>
+                    <span className="rounded-full bg-tint-red/10 px-2.5 py-0.5 text-caption-1 font-semibold text-tint-red">{locale === "zh" ? "需行动" : "Action"}</span>
                   )}
                 </div>
-                <p className="mt-1 text-footnote text-label-tertiary">{locale === "zh" ? event.suggestion_zh : event.suggestion}</p>
+                <p className="mt-1 text-footnote text-label-tertiary leading-relaxed">{locale === "zh" ? event.suggestion_zh : event.suggestion}</p>
                 <p className="mt-1 text-caption-2 text-label-quaternary">{event.event_time}</p>
               </div>
             ))}
@@ -101,8 +104,9 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         </div>
       )}
 
+      {/* ── AI Analysis ── */}
       <Card variant="prominent">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <h2 className="text-title-3 text-label-primary">{t(locale, "profile.aiAnalysis")}</h2>
           <TriggerAnalysisButton
             walletID={params.id}
@@ -117,11 +121,11 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         </div>
         {aiReport ? (
           <div className="space-y-4">
-            <div className="rounded-lg bg-tint-green/[0.08] p-4">
-              <p className="text-callout font-medium text-label-primary">{aiReport.nl_summary || t(locale, "profile.noSummary")}</p>
+            <div className="rounded-xl bg-tint-green/[0.06] p-5">
+              <p className="text-callout font-medium leading-relaxed text-label-primary">{aiReport.nl_summary || t(locale, "profile.noSummary")}</p>
             </div>
 
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-caption-1 text-label-tertiary">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-caption-1 text-label-quaternary">
               <span>{t(locale, "profile.model")} {aiReport.model_id}</span>
               <span>{aiReport.input_tokens}/{aiReport.output_tokens} {t(locale, "profile.tokens")}</span>
               <span>{aiReport.latency_ms}ms</span>
@@ -129,26 +133,26 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
             </div>
 
             {warnings.length > 0 && (
-              <div className="rounded-lg bg-tint-orange/[0.08] p-4">
-                <h4 className="mb-2 flex items-center gap-1.5 text-caption-1 font-semibold uppercase tracking-wide text-tint-orange">
+              <div className="rounded-xl bg-tint-orange/[0.06] p-5">
+                <h4 className="mb-2 flex items-center gap-2 text-caption-1 font-bold uppercase tracking-widest text-tint-orange">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   {t(locale, "profile.aiWarnings")}
                 </h4>
-                <ul className="space-y-1 pl-4">
+                <ul className="space-y-1.5 pl-4">
                   {warnings.map((w, i) => (
-                    <li key={`${w}-${i}`} className="list-disc text-footnote text-label-secondary">{w}</li>
+                    <li key={`${w}-${i}`} className="list-disc text-footnote leading-relaxed text-label-secondary">{w}</li>
                   ))}
                 </ul>
               </div>
             )}
 
-            <details className="group rounded-lg border border-separator">
-              <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-subheadline font-medium text-label-secondary transition-colors hover:bg-surface-tertiary">
+            <details className="group rounded-xl border border-separator/50 overflow-hidden">
+              <summary className="flex cursor-pointer items-center gap-2 px-5 py-3.5 text-subheadline font-medium text-label-secondary transition-colors duration-200 hover:bg-surface-tertiary/70">
                 <ChevronRight className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
                 {t(locale, "profile.aiRawJson")}
               </summary>
-              <div className="border-t border-separator p-4">
-                <pre className="overflow-auto rounded-md bg-surface-tertiary p-3 font-mono text-caption-1 text-label-secondary">
+              <div className="border-t border-separator/50 p-5">
+                <pre className="overflow-auto rounded-lg bg-surface-tertiary/70 p-4 font-mono text-caption-1 text-label-secondary">
                   {JSON.stringify(aiReport.report, null, 2)}
                 </pre>
               </div>
@@ -158,7 +162,7 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
           <EmptyState preset="no-ai-report" locale={locale} />
         )}
         {aiHistory.length > 0 && (
-          <div className="mt-4 border-t border-separator pt-3 text-caption-1 text-label-tertiary">
+          <div className="mt-5 border-t border-separator/50 pt-3 text-caption-1 text-label-quaternary">
             {aiHistory.map((h) => (
               <p key={h.id} className="py-0.5">{t(locale, "profile.history")}: {h.created_at}</p>
             ))}
@@ -166,10 +170,11 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         )}
       </Card>
 
+      {/* ── Layer 1 Facts ── */}
       <div>
         <SectionHeader title={t(locale, "profile.layer1")} />
         <Card>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <StatCell label={t(locale, "profile.realizedPnl")} value={profile.layer1_facts.realized_pnl.toFixed(2)} numericValue={profile.layer1_facts.realized_pnl} />
             <StatCell label={t(locale, "profile.tradingPnl")} value={profile.layer1_facts.trading_pnl.toFixed(2)} numericValue={profile.layer1_facts.trading_pnl} />
             <StatCell label={t(locale, "profile.makerRebates")} value={profile.layer1_facts.maker_rebates.toFixed(2)} numericValue={profile.layer1_facts.maker_rebates} />
@@ -180,10 +185,11 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         </Card>
       </div>
 
+      {/* ── Layer 3 Info-Edge ── */}
       <div>
         <SectionHeader title={t(locale, "profile.layer3")} />
         <Card>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <StatCell label={t(locale, "profile.label")} value={profile.layer3_info_edge.label} />
             <StatCell label={t(locale, "profile.meanDt")} value={`${profile.layer3_info_edge.mean_delta_minutes.toFixed(2)} min`} />
             <StatCell label={t(locale, "profile.samples")} value={String(profile.layer3_info_edge.samples)} />
@@ -192,14 +198,16 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         </Card>
       </div>
 
-      <div className="rounded-lg bg-tint-orange/[0.06] p-4">
-        <div className="space-y-1">
+      {/* ── Disclosures ── */}
+      <div className="rounded-2xl bg-tint-orange/[0.05] p-5">
+        <div className="space-y-1.5">
           {profile.meta.disclosures.map((d) => (
-            <p key={d} className="text-caption-1 text-tint-orange">{d}</p>
+            <p key={d} className="text-caption-1 leading-relaxed text-tint-orange">{d}</p>
           ))}
         </div>
       </div>
 
+      {/* ── Share Card ── */}
       <ShareCardPanel
         card={shareCard}
         locale={locale}
@@ -216,13 +224,14 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         }}
       />
 
-      <details className="group rounded-lg border border-separator bg-surface-secondary shadow-elevation-1">
-        <summary className="flex cursor-pointer items-center gap-2 px-5 py-4 text-headline text-label-primary transition-colors hover:bg-surface-tertiary">
+      {/* ── Evidence (raw JSON) ── */}
+      <details className="group rounded-2xl border border-separator/50 bg-surface-secondary shadow-elevation-1 overflow-hidden">
+        <summary className="flex cursor-pointer items-center gap-2.5 px-6 py-4 text-headline text-label-primary transition-colors duration-200 hover:bg-surface-tertiary/70">
           <ChevronRight className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
           {t(locale, "profile.evidence")}
         </summary>
-        <div className="border-t border-separator p-5">
-          <pre className="overflow-auto rounded-md bg-surface-tertiary p-3 font-mono text-caption-1 text-label-secondary">
+        <div className="border-t border-separator/50 p-6">
+          <pre className="overflow-auto rounded-xl bg-surface-tertiary/70 p-4 font-mono text-caption-1 text-label-secondary">
             {JSON.stringify(explanation.layer2, null, 2)}
           </pre>
         </div>

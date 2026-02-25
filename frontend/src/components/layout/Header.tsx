@@ -13,10 +13,10 @@ export function Header({ locale }: { locale: Locale }) {
         borderColor: "var(--separator)",
       }}
     >
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
         <div className="min-w-0">
-          <h1 className="text-title-2 text-label-primary">Easy Arbitra</h1>
-          <p className="text-footnote text-label-tertiary">{t(locale, "app.subtitle")}</p>
+          <h1 className="text-title-2 tracking-tight text-label-primary">Easy Arbitra</h1>
+          <p className="text-caption-1 text-label-tertiary">{t(locale, "app.subtitle")}</p>
         </div>
         <LanguageSwitcher
           locale={locale}

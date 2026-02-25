@@ -15,7 +15,7 @@ export function DesktopNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
 
   return (
-    <nav className="mx-auto hidden max-w-5xl gap-1 overflow-x-auto px-4 sm:px-6 md:flex">
+    <nav className="mx-auto hidden max-w-5xl gap-0.5 overflow-x-auto px-4 sm:px-6 md:flex">
       {links.map((link) => {
         const isActive =
           link.href === "/"
@@ -26,16 +26,16 @@ export function DesktopNav({ locale }: { locale: Locale }) {
             key={link.href}
             href={link.href}
             className={[
-              "relative whitespace-nowrap px-3 py-2.5 text-subheadline",
-              "transition-colors duration-150 ease-apple",
+              "relative whitespace-nowrap px-4 py-2.5 text-subheadline",
+              "transition-colors duration-200 ease-apple",
               isActive
                 ? "text-tint-blue font-semibold"
-                : "text-label-secondary hover:text-label-primary",
+                : "text-label-tertiary hover:text-label-primary",
             ].join(" ")}
           >
             {t(locale, link.labelKey)}
             {isActive && (
-              <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-tint-blue" />
+              <span className="absolute bottom-0 left-4 right-4 h-[2.5px] rounded-full bg-tint-blue" />
             )}
           </Link>
         );

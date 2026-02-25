@@ -6,22 +6,22 @@ type Size = "large" | "medium" | "small" | "mini";
 
 const variantClasses: Record<Variant, string> = {
   filled:
-    "bg-tint-blue text-white hover:brightness-110 active:brightness-90 active:scale-[0.98]",
+    "bg-tint-blue text-white shadow-[0_1px_3px_rgba(0,122,255,0.3)] hover:shadow-[0_4px_12px_rgba(0,122,255,0.3)] hover:brightness-110 active:brightness-95 active:scale-[0.97]",
   tinted:
-    "bg-tint-blue/[0.12] text-tint-blue hover:bg-tint-blue/[0.15] active:bg-tint-blue/[0.2] active:scale-[0.98]",
+    "bg-tint-blue/[0.12] text-tint-blue hover:bg-tint-blue/[0.18] active:bg-tint-blue/[0.24] active:scale-[0.97]",
   gray:
-    "bg-surface-tertiary text-label-primary hover:brightness-95 active:scale-[0.98]",
+    "bg-surface-tertiary text-label-primary hover:bg-surface-tertiary/80 active:scale-[0.97]",
   plain:
-    "bg-transparent text-tint-blue hover:opacity-70 !shadow-none !p-0",
+    "bg-transparent text-tint-blue hover:text-tint-blue/80 active:text-tint-blue/60 !shadow-none !p-0",
   destructive:
-    "bg-tint-red text-white hover:brightness-110 active:brightness-90 active:scale-[0.98]",
+    "bg-tint-red text-white shadow-[0_1px_3px_rgba(255,59,48,0.3)] hover:shadow-[0_4px_12px_rgba(255,59,48,0.3)] hover:brightness-110 active:brightness-95 active:scale-[0.97]",
 };
 
 const sizeClasses: Record<Size, string> = {
-  large:  "h-[50px] px-6 text-headline rounded-md",
-  medium: "h-11 px-5 text-body rounded-md",
-  small:  "h-9 px-4 text-subheadline rounded-md",
-  mini:   "h-7 px-3 text-caption-1 rounded-sm",
+  large:  "h-[50px] px-7 text-headline rounded-xl",
+  medium: "h-11 px-5 text-body rounded-[10px]",
+  small:  "h-9 px-4 text-subheadline rounded-lg",
+  mini:   "h-7 px-3 text-caption-1 rounded-md",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -38,8 +38,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={[
           "inline-flex items-center justify-center gap-2 font-semibold",
-          "transition-all duration-200 ease-apple",
-          "disabled:opacity-35 disabled:pointer-events-none",
+          "transition-all duration-250 ease-apple",
+          "disabled:opacity-35 disabled:pointer-events-none disabled:shadow-none",
           "select-none whitespace-nowrap",
           variantClasses[variant],
           sizeClasses[size],

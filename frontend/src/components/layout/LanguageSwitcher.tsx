@@ -21,15 +21,15 @@ export function LanguageSwitcher({
 
   return (
     <div
-      className="flex items-center rounded-full p-0.5"
+      className="flex items-center rounded-full p-[3px] border border-separator/40"
       style={{ background: "var(--surface-tertiary)" }}
     >
       <button
         type="button"
         onClick={() => setLocale("en")}
         className={[
-          "rounded-full px-3 py-1.5 text-caption-1 font-medium",
-          "transition-all duration-200 ease-apple",
+          "rounded-full px-3 py-1 text-caption-1 font-medium",
+          "transition-all duration-250 ease-apple",
           locale === "en"
             ? "bg-surface-secondary text-label-primary shadow-elevation-1"
             : "text-label-tertiary hover:text-label-secondary",
@@ -41,8 +41,8 @@ export function LanguageSwitcher({
         type="button"
         onClick={() => setLocale("zh")}
         className={[
-          "rounded-full px-3 py-1.5 text-caption-1 font-medium",
-          "transition-all duration-200 ease-apple",
+          "rounded-full px-3 py-1 text-caption-1 font-medium",
+          "transition-all duration-250 ease-apple",
           locale === "zh"
             ? "bg-surface-secondary text-label-primary shadow-elevation-1"
             : "text-label-tertiary hover:text-label-secondary",

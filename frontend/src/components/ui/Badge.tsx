@@ -8,12 +8,14 @@ const tierConfig: Record<TierLevel, { label: string; labelZh: string; className:
   star: {
     label: "Star",
     labelZh: "明星池",
-    className: "bg-gradient-to-br from-tint-gold to-tint-orange text-black font-bold shadow-[0_2px_8px_rgba(255,214,10,0.3)]",
+    className:
+      "bg-gradient-to-br from-amber-400 via-tint-gold to-orange-400 text-black font-bold shadow-[0_2px_8px_rgba(255,214,10,0.3)]",
   },
   strategy: {
     label: "Strategy",
     labelZh: "策略池",
-    className: "bg-surface-tertiary border border-separator text-label-secondary font-semibold",
+    className:
+      "bg-surface-tertiary/80 border border-separator text-label-secondary font-semibold backdrop-blur-sm",
   },
   observation: {
     label: "Observation",
@@ -25,7 +27,9 @@ const tierConfig: Record<TierLevel, { label: string; labelZh: string; className:
 export function TierBadge({ tier, locale = "en" }: { tier: TierLevel; locale?: "en" | "zh" }) {
   const cfg = tierConfig[tier] || tierConfig.observation;
   return (
-    <span className={`inline-flex h-6 items-center rounded-full px-2.5 text-caption-1 ${cfg.className}`}>
+    <span
+      className={`inline-flex h-6 items-center rounded-full px-2.5 text-caption-1 transition-transform duration-200 ease-apple ${cfg.className}`}
+    >
       {locale === "zh" ? cfg.labelZh : cfg.label}
     </span>
   );
@@ -46,7 +50,7 @@ const dotColors: Record<StatusColor, string> = {
 export function StatusBadge({ color, children }: { color: StatusColor; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-caption-1 text-label-secondary">
-      <span className={`h-1.5 w-1.5 rounded-full ${dotColors[color]}`} />
+      <span className={`h-2 w-2 rounded-full ${dotColors[color]} animate-pulse-soft`} />
       {children}
     </span>
   );
@@ -63,7 +67,7 @@ export function CategoryTag({ children, color = "blue" }: { children: ReactNode;
     gray: "bg-surface-tertiary text-label-secondary",
   };
   return (
-    <span className={`inline-flex h-6 items-center rounded-full px-2.5 text-caption-1 font-medium ${colorMap[color]}`}>
+    <span className={`inline-flex h-6 items-center rounded-full px-2.5 text-caption-1 font-medium transition-colors duration-150 ${colorMap[color]}`}>
       {children}
     </span>
   );

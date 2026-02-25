@@ -77,11 +77,21 @@ const config: Config = {
           "0%": { opacity: "0", transform: "scale(0.95)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        "slide-up": {
+          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-soft": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.7" },
+        },
       },
       animation: {
         shimmer: "shimmer 1.5s ease-in-out infinite",
         "fade-in": "fade-in 0.3s cubic-bezier(0,0,0.2,1) forwards",
         "scale-in": "scale-in 0.2s cubic-bezier(0.25,0.1,0.25,1) forwards",
+        "slide-up": "slide-up 0.5s cubic-bezier(0,0,0.2,1) forwards",
+        "pulse-soft": "pulse-soft 2s cubic-bezier(0.4,0,0.6,1) infinite",
       },
     },
   },

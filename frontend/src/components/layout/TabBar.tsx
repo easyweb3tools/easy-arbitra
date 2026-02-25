@@ -39,12 +39,20 @@ export function TabBar({ locale }: { locale: Locale }) {
               href={tab.href}
               className={[
                 "flex flex-1 flex-col items-center gap-0.5 py-2",
-                "transition-colors duration-150 ease-apple",
+                "transition-all duration-200 ease-apple",
                 isActive ? "text-tint-blue" : "text-label-tertiary",
               ].join(" ")}
             >
-              <Icon className="h-6 w-6" strokeWidth={isActive ? 2.2 : 1.5} />
-              <span className="text-caption-2">{t(locale, tab.labelKey)}</span>
+              <div className={[
+                "flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200",
+                isActive ? "bg-tint-blue/10" : "",
+              ].join(" ")}>
+                <Icon className="h-5 w-5" strokeWidth={isActive ? 2.2 : 1.5} />
+              </div>
+              <span className={[
+                "text-caption-2",
+                isActive ? "font-medium" : "",
+              ].join(" ")}>{t(locale, tab.labelKey)}</span>
             </Link>
           );
         })}
