@@ -9,6 +9,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 FROM base AS build
+RUN mkdir -p public
 RUN npm run build
 
 FROM node:20-alpine AS prod
