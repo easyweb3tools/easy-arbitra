@@ -101,7 +101,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("database.sslmode", "disable")
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.max_open_conns", 100)
-	v.SetDefault("database.auto_migrate", false)
+	v.SetDefault("database.auto_migrate", true)
 	v.SetDefault("logger.level", "info")
 	v.SetDefault("logger.format", "json")
 	v.SetDefault("nova.enabled", false)

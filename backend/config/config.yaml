@@ -11,7 +11,7 @@ database:
   sslmode: disable
   max_idle_conns: 10
   max_open_conns: 100
-  auto_migrate: false
+  auto_migrate: true
 
 logger:
   level: info

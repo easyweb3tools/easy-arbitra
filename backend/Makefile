@@ -12,10 +12,6 @@ APP=easy-arbitra-server
  seed:
 	go run ./cmd/seed
 
-.PHONY: migrate
- migrate:
-	go run ./cmd/migrate
-
 .PHONY: build
  build:
 	go build -o bin/$(APP) ./cmd/server
