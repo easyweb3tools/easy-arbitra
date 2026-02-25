@@ -70,10 +70,10 @@ func (TradeFill) TableName() string { return "trade_fill" }
 type OffchainEvent struct {
 	ID            int64          `gorm:"primaryKey" json:"id"`
 	MarketID      *int64         `gorm:"index" json:"market_id,omitempty"`
-	SourceEventID string         `gorm:"column:source_event_id;size:120;default:''" json:"source_event_id"`
+	SourceEventID string         `gorm:"column:source_event_id;size:120;default:'';uniqueIndex:idx_offchain_event_source_event" json:"source_event_id"`
 	EventTime     time.Time      `gorm:"index" json:"event_time"`
 	EventType     string         `gorm:"size:30" json:"event_type"`
-	Source        string         `gorm:"column:source_name;size:100" json:"source_name"`
+	Source        string         `gorm:"column:source_name;size:100;uniqueIndex:idx_offchain_event_source_event" json:"source_name"`
 	Title         string         `json:"title"`
 	Payload       datatypes.JSON `gorm:"type:jsonb" json:"payload"`
 	CreatedAt     time.Time      `json:"created_at"`
@@ -149,8 +149,8 @@ func (AnomalyAlert) TableName() string { return "anomaly_alert" }
 
 type Watchlist struct {
 	ID              int64     `gorm:"primaryKey" json:"id"`
-	WalletID        int64     `gorm:"index" json:"wallet_id"`
-	UserFingerprint string    `gorm:"size:120;index:idx_watchlist_wallet_user,unique" json:"user_fingerprint"`
+	WalletID        int64     `gorm:"uniqueIndex:idx_watchlist_wallet_user" json:"wallet_id"`
+	UserFingerprint string    `gorm:"size:120;uniqueIndex:idx_watchlist_wallet_user" json:"user_fingerprint"`
 	CreatedAt       time.Time `json:"created_at"`
 }
 

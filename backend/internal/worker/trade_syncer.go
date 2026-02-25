@@ -13,6 +13,7 @@ import (
 const (
 	tradeCursorSource = "data_api"
 	tradeCursorStream = "trades_latest_ts"
+	tradeMaxOffset    = 2800 // Polymarket API hard limit is 3000; stay safely below
 )
 
 type TradeSyncer struct {
@@ -112,6 +113,9 @@ func (s *TradeSyncer) RunOnce(ctx context.Context) error {
 			break
 		}
 		offset += s.limit
+		if offset >= tradeMaxOffset {
+			break
+		}
 	}
 
 	if s.cursorRepo != nil && maxSeenTs > 0 && maxSeenTs >= cursorTs {
