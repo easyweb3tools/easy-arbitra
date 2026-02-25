@@ -13,6 +13,9 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - name: Derive Docker-safe tag
+        id: meta
+        run: echo "tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GHCR
@@ -28,7 +31,7 @@ jobs:
           target: prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/backend:${{ steps.meta.outputs.tag }}
             ghcr.io/${{ github.repository }}/backend:latest
       - name: Build and push frontend
         uses: docker/build-push-action@v6
@@ -37,5 +40,5 @@ jobs:
           target: prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/frontend:${{ steps.meta.outputs.tag }}
             ghcr.io/${{ github.repository }}/frontend:latest
