@@ -61,6 +61,7 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 		ct.PUT("/settings", h.UpdateCopyTradeSettings)
 		ct.GET("/configs", h.ListCopyTradeConfigs)
 		ct.GET("/dashboard", h.GetCopyTradeDashboard)
+		ct.GET("/monitor", h.GetCopyTradeMonitor)
 		ct.GET("/positions", h.ListCopyTradePositions)
 		ct.GET("/:wallet_id", h.GetCopyTradeConfig)
 		ct.GET("/:wallet_id/decisions", h.ListCopyTradeDecisions)

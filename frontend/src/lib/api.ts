@@ -4,6 +4,7 @@ import {
   ApiEnvelope,
   CopyTradeDashboard,
   CopyTradeDecision,
+  CopyTradeMonitor,
   CopyTradePerformance,
   CopyTradingConfig,
   LeaderboardItem,
@@ -241,4 +242,8 @@ export function closeCopyTradePosition(decisionID: number, fingerprint: string) 
     method: "POST",
     headers: { "X-User-Fingerprint": fingerprint },
   });
+}
+
+export function getCopyTradeMonitor() {
+  return getJSON<CopyTradeMonitor>("/copy-trading/monitor");
 }

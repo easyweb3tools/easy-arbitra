@@ -181,3 +181,38 @@ func (h *Handlers) CloseCopyTradePosition(c *gin.Context) {
 	}
 	response.OK(c, dec)
 }
+
+func (h *Handlers) GetCopyTradeMonitor(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	runs, err := h.copyTradeRepo.GetSyncerRunHistory(ctx, 20)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+
+	hourlyStats, err := h.copyTradeRepo.GetHourlySyncStats(ctx, 24)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+
+	copyableWallets, err := h.copyTradeRepo.GetCopyableWallets(ctx, 20)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+
+	enabledConfigs, err := h.copyTradeRepo.ListEnabledConfigs(ctx)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"enabled_configs":  len(enabledConfigs),
+		"recent_runs":      runs,
+		"hourly_stats":     hourlyStats,
+		"copyable_wallets": copyableWallets,
+	})
+}

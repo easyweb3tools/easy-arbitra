@@ -350,3 +350,45 @@ export type CopyTradePerformance = {
   total_copies: number;
   daily_points: { date: string; pnl: number; copies: number }[];
 };
+
+// ── Copy Trade Monitoring Types ──
+
+export type SyncerRun = {
+  id: number;
+  job_name: string;
+  started_at: string;
+  ended_at?: string;
+  status: string;
+  stats: Record<string, number>;
+  error_text?: string;
+};
+
+export type HourlyStat = {
+  hour: string;
+  runs: number;
+  wallets_checked: number;
+  new_trades: number;
+  decisions_copy: number;
+  decisions_skip: number;
+  errors: number;
+};
+
+export type CopyableWallet = {
+  id: number;
+  pseudonym?: string;
+  address: string;
+  smart_score: number;
+  pool_tier: string;
+  strategy_type: string;
+  risk_level: string;
+  momentum: string;
+  pnl_30d: number;
+  trade_count_30d: number;
+};
+
+export type CopyTradeMonitor = {
+  enabled_configs: number;
+  recent_runs: SyncerRun[];
+  hourly_stats: HourlyStat[];
+  copyable_wallets: CopyableWallet[];
+};

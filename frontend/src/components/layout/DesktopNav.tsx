@@ -9,6 +9,7 @@ const links = [
   { href: "/wallets", labelKey: "nav.explore" as const },
   { href: "/watchlist", labelKey: "nav.tracking" as const },
   { href: "/copy-trading", labelKey: "copyTrade.title" as const },
+  { href: "/monitor", labelKey: "monitor.title" as const },
   { href: "/markets", labelKey: "nav.more" as const },
 ] as const;
 

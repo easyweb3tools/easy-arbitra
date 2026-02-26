@@ -169,6 +169,76 @@ func (r *Repository) ListDailyPerfByConfig(ctx context.Context, configID int64, 
 	return rows, err
 }
 
+// ── Monitoring queries ──
+
+type HourlyStat struct {
+	Hour           time.Time `json:"hour"`
+	Runs           int       `json:"runs"`
+	WalletsChecked int       `json:"wallets_checked"`
+	NewTrades      int       `json:"new_trades"`
+	DecisionsCopy  int       `json:"decisions_copy"`
+	DecisionsSkip  int       `json:"decisions_skip"`
+	Errors         int       `json:"errors"`
+}
+
+type CopyableWallet struct {
+	ID            int64   `json:"id"`
+	Pseudonym     *string `json:"pseudonym,omitempty"`
+	Address       string  `json:"address"`
+	SmartScore    int     `json:"smart_score"`
+	PoolTier      string  `json:"pool_tier"`
+	StrategyType  string  `json:"strategy_type"`
+	RiskLevel     string  `json:"risk_level"`
+	Momentum      string  `json:"momentum"`
+	Pnl30D        float64 `json:"pnl_30d"`
+	TradeCount30D int     `json:"trade_count_30d"`
+}
+
+func (r *Repository) GetSyncerRunHistory(ctx context.Context, limit int) ([]model.IngestRun, error) {
+	var rows []model.IngestRun
+	err := r.db.WithContext(ctx).
+		Where("job_name = ?", "copy_trade_syncer").
+		Order("started_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) GetHourlySyncStats(ctx context.Context, hours int) ([]HourlyStat, error) {
+	var rows []HourlyStat
+	err := r.db.WithContext(ctx).Raw(`
+SELECT date_trunc('hour', started_at) AS hour,
+       COUNT(*)                                          AS runs,
+       COALESCE(SUM((stats->>'wallets_checked')::int),0) AS wallets_checked,
+       COALESCE(SUM((stats->>'new_trades')::int),0)      AS new_trades,
+       COALESCE(SUM((stats->>'decisions_copy')::int),0)   AS decisions_copy,
+       COALESCE(SUM((stats->>'decisions_skip')::int),0)   AS decisions_skip,
+       COALESCE(SUM((stats->>'errors')::int),0)           AS errors
+FROM ingest_run
+WHERE job_name = 'copy_trade_syncer' AND started_at > NOW() - make_interval(hours => ?)
+GROUP BY 1 ORDER BY 1 DESC`, hours).Scan(&rows).Error
+	return rows, err
+}
+
+func (r *Repository) GetCopyableWallets(ctx context.Context, limit int) ([]CopyableWallet, error) {
+	var rows []CopyableWallet
+	err := r.db.WithContext(ctx).Raw(`
+SELECT w.id, w.pseudonym, encode(w.address, 'hex') AS address,
+       ws.smart_score, ws.pool_tier, ws.strategy_type, ws.risk_level, ws.momentum,
+       wf.pnl_30d, wf.trade_count_30d
+FROM wallet w
+JOIN wallet_score ws ON ws.wallet_id = w.id
+JOIN wallet_features_daily wf ON wf.wallet_id = w.id
+WHERE ws.id = (SELECT id FROM wallet_score WHERE wallet_id = w.id ORDER BY scored_at DESC LIMIT 1)
+  AND wf.feature_date = (SELECT MAX(feature_date) FROM wallet_features_daily WHERE wallet_id = w.id)
+  AND ws.smart_score >= 70
+  AND wf.pnl_30d > 0
+  AND wf.trade_count_30d >= 10
+ORDER BY ws.smart_score DESC, wf.pnl_30d DESC
+LIMIT ?`, limit).Scan(&rows).Error
+	return rows, err
+}
+
 // ── Dashboard aggregates ──
 
 type DashboardStats struct {

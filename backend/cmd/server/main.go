@@ -114,7 +114,7 @@ func main() {
 	copyTradeService := copytrade.NewService(copyTradeRepo, walletRepo, scoreRepo, featureRepo, tradeRepo, marketRepo, copyTradeAgent)
 
 	h := handler.New(
-		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService, portfolioService, copyTradeService,
+		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService, portfolioService, copyTradeService, copyTradeRepo,
 		func(c *gin.Context) error {
 			return sqlDB.PingContext(c.Request.Context())
 		},
@@ -155,7 +155,7 @@ func main() {
 			worker.ScheduledSyncer{Syncer: worker.NewFeatureBuilder(featureRepo), Interval: cfg.Worker.FeatureBuilderInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewScoreCalculator(walletRepo, classifier), Interval: cfg.Worker.ScoreCalculatorInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewAnomalyDetector(anomalyService), Interval: cfg.Worker.AnomalyDetectorInterval},
-			worker.ScheduledSyncer{Syncer: worker.NewCopyTradeSyncer(copyTradeService, copyTradeRepo, tradeRepo, marketRepo), Interval: cfg.Worker.CopyTradeSyncerInterval},
+			worker.ScheduledSyncer{Syncer: worker.NewCopyTradeSyncer(copyTradeService, copyTradeRepo, tradeRepo, marketRepo, lg, db), Interval: cfg.Worker.CopyTradeSyncerInterval},
 		}
 		if cfg.Worker.AIBatchEnabled {
 			jobs = append(jobs, worker.ScheduledSyncer{

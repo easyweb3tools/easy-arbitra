@@ -23,6 +23,7 @@ type Handlers struct {
 	watchlistService *service.WatchlistService
 	portfolioService *service.PortfolioService
 	copyTradeService *copytrade.Service
+	copyTradeRepo    *copytrade.Repository
 	readyCheck       func(*gin.Context) error
 }
 
@@ -37,12 +38,13 @@ func New(
 	watchlistService *service.WatchlistService,
 	portfolioService *service.PortfolioService,
 	copyTradeService *copytrade.Service,
+	copyTradeRepo *copytrade.Repository,
 	readyCheck func(*gin.Context) error,
 ) *Handlers {
 	return &Handlers{
 		walletService: walletService, marketService: marketService, statsService: statsService, anomalyService: anomalyService,
 		explainService: explainService, infoEdge: infoEdge, aiService: aiService, watchlistService: watchlistService,
-		portfolioService: portfolioService, copyTradeService: copyTradeService, readyCheck: readyCheck,
+		portfolioService: portfolioService, copyTradeService: copyTradeService, copyTradeRepo: copyTradeRepo, readyCheck: readyCheck,
 	}
 }
 

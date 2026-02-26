@@ -9,7 +9,7 @@ import (
 )
 
 func TestHealthzRoute(t *testing.T) {
-	h := handler.New(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	h := handler.New(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	r := NewRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
