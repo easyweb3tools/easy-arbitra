@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"easy-arbitra/backend/internal/copytrade"
 	"easy-arbitra/backend/internal/service"
 	"easy-arbitra/backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,7 @@ type Handlers struct {
 	aiService        *service.AIService
 	watchlistService *service.WatchlistService
 	portfolioService *service.PortfolioService
+	copyTradeService *copytrade.Service
 	readyCheck       func(*gin.Context) error
 }
 
@@ -34,12 +36,13 @@ func New(
 	aiService *service.AIService,
 	watchlistService *service.WatchlistService,
 	portfolioService *service.PortfolioService,
+	copyTradeService *copytrade.Service,
 	readyCheck func(*gin.Context) error,
 ) *Handlers {
 	return &Handlers{
 		walletService: walletService, marketService: marketService, statsService: statsService, anomalyService: anomalyService,
 		explainService: explainService, infoEdge: infoEdge, aiService: aiService, watchlistService: watchlistService,
-		portfolioService: portfolioService, readyCheck: readyCheck,
+		portfolioService: portfolioService, copyTradeService: copyTradeService, readyCheck: readyCheck,
 	}
 }
 

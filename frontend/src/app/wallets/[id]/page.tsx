@@ -7,9 +7,11 @@ import {
   getWalletPositions,
   getWalletProfile,
   getWalletTrades,
+  getCopyTradeConfig,
 } from "@/lib/api";
 import { TriggerAnalysisButton } from "@/components/ai/TriggerAnalysisButton";
 import { WatchlistToggleButton } from "@/components/watchlist/WatchlistToggleButton";
+import { CopyTradeToggle } from "@/components/copytrade/CopyTradeToggle";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { StatCell } from "@/components/ui/StatCell";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -70,6 +72,15 @@ export default async function WalletProfilePage({
     <section className="space-y-8 animate-fade-in">
       {/* ── 1. Account Info Card ── */}
       <AccountInfoCard profile={profile} decisionCard={decisionCard} locale={locale} />
+
+      {/* ── AI Copy Trading Toggle ── */}
+      <div className="flex items-center gap-3">
+        <CopyTradeToggle
+          walletID={parseInt(params.id, 10)}
+          enabled={false}
+          locale={locale}
+        />
+      </div>
 
       {/* ── 2. P&L Chart ── */}
       {pnlHistory.length > 0 && (

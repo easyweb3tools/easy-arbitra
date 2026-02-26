@@ -14,6 +14,7 @@ import (
 	"easy-arbitra/backend/internal/api"
 	"easy-arbitra/backend/internal/api/handler"
 	"easy-arbitra/backend/internal/client"
+	"easy-arbitra/backend/internal/copytrade"
 	"easy-arbitra/backend/internal/model"
 	"easy-arbitra/backend/internal/repository"
 	"easy-arbitra/backend/internal/service"
@@ -75,6 +76,9 @@ func main() {
 			&model.Portfolio{},
 			&model.IngestCursor{},
 			&model.IngestRun{},
+			&model.CopyTradingConfig{},
+			&model.CopyTradeDecision{},
+			&model.CopyTradeDailyPerf{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
@@ -105,8 +109,12 @@ func main() {
 	analyzer := ai.NewAnalyzer(cfg.Nova, lg)
 	aiService := service.NewAIService(walletRepo, scoreRepo, tradeRepo, aiReportRepo, watchlistRepo, analyzer, cfg.Nova.AnalysisCacheHours)
 
+	copyTradeRepo := copytrade.NewRepository(db)
+	copyTradeAgent := copytrade.NewAgent(analyzer)
+	copyTradeService := copytrade.NewService(copyTradeRepo, walletRepo, scoreRepo, featureRepo, tradeRepo, marketRepo, copyTradeAgent)
+
 	h := handler.New(
-		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService, portfolioService,
+		walletService, marketService, statsService, anomalyService, explainService, infoEdgeService, aiService, watchlistService, portfolioService, copyTradeService,
 		func(c *gin.Context) error {
 			return sqlDB.PingContext(c.Request.Context())
 		},
@@ -147,6 +155,7 @@ func main() {
 			worker.ScheduledSyncer{Syncer: worker.NewFeatureBuilder(featureRepo), Interval: cfg.Worker.FeatureBuilderInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewScoreCalculator(walletRepo, classifier), Interval: cfg.Worker.ScoreCalculatorInterval},
 			worker.ScheduledSyncer{Syncer: worker.NewAnomalyDetector(anomalyService), Interval: cfg.Worker.AnomalyDetectorInterval},
+			worker.ScheduledSyncer{Syncer: worker.NewCopyTradeSyncer(copyTradeService, copyTradeRepo, tradeRepo, marketRepo), Interval: cfg.Worker.CopyTradeSyncerInterval},
 		}
 		if cfg.Worker.AIBatchEnabled {
 			jobs = append(jobs, worker.ScheduledSyncer{

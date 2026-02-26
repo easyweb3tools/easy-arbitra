@@ -869,6 +869,14 @@ func (r *MarketRepository) GetByID(ctx context.Context, id int64) (*model.Market
 	return &row, nil
 }
 
+func (r *MarketRepository) GetBySlug(ctx context.Context, slug string) (*model.Market, error) {
+	var row model.Market
+	if err := r.db.WithContext(ctx).Where("slug = ?", slug).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *MarketRepository) Count(ctx context.Context) (int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).Model(&model.Market{}).Count(&total).Error

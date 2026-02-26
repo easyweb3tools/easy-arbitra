@@ -54,6 +54,18 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 		ai.POST("/analyze/:wallet_id", h.TriggerAIAnalysis)
 		ai.GET("/report/:wallet_id", h.GetAIReport)
 		ai.GET("/report/:wallet_id/history", h.ListAIReports)
+
+		ct := v1.Group("/copy-trading")
+		ct.POST("/enable", h.EnableCopyTrading)
+		ct.POST("/disable", h.DisableCopyTrading)
+		ct.PUT("/settings", h.UpdateCopyTradeSettings)
+		ct.GET("/configs", h.ListCopyTradeConfigs)
+		ct.GET("/dashboard", h.GetCopyTradeDashboard)
+		ct.GET("/positions", h.ListCopyTradePositions)
+		ct.GET("/:wallet_id", h.GetCopyTradeConfig)
+		ct.GET("/:wallet_id/decisions", h.ListCopyTradeDecisions)
+		ct.GET("/:wallet_id/performance", h.GetCopyTradePerformance)
+		ct.POST("/decisions/:id/close", h.CloseCopyTradePosition)
 	}
 
 	return r

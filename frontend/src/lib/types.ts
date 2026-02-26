@@ -298,3 +298,55 @@ export type WalletPosition = {
   trade_count: number;
   last_trade_at: string;
 };
+
+// ── Copy Trading Types ──
+
+export type CopyTradingConfig = {
+  id: number;
+  wallet_id: number;
+  wallet_address: string;
+  wallet_pseudonym?: string;
+  enabled: boolean;
+  max_position_usdc: number;
+  risk_preference: "conservative" | "moderate" | "aggressive";
+  total_pnl: number;
+  total_copies: number;
+  open_positions: number;
+  created_at: string;
+};
+
+export type CopyTradeDecision = {
+  id: number;
+  decision: "copy" | "skip";
+  confidence: number;
+  market_title: string;
+  outcome: string;
+  action: string;
+  price: number;
+  size_usdc: number;
+  stop_loss_price?: number;
+  reasoning: string;
+  reasoning_en: string;
+  risk_notes: string[];
+  status: "pending" | "executed" | "stopped" | "expired";
+  realized_pnl?: number;
+  created_at: string;
+};
+
+export type CopyTradeDashboard = {
+  total_pnl: number;
+  win_rate: number;
+  total_copies: number;
+  total_skipped: number;
+  open_positions: number;
+  active_configs: number;
+  configs: CopyTradingConfig[];
+  recent_decisions: CopyTradeDecision[];
+};
+
+export type CopyTradePerformance = {
+  total_pnl: number;
+  win_rate: number;
+  total_copies: number;
+  daily_points: { date: string; pnl: number; copies: number }[];
+};

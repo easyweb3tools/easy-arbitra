@@ -87,6 +87,7 @@ type WorkerConfig struct {
 	AIBatchMinRealizedPnL        float64       `mapstructure:"ai_batch_min_realized_pnl"`
 	MaxMarketsPerSync            int           `mapstructure:"max_markets_per_sync"`
 	MaxOffchainEventsPerSync     int           `mapstructure:"max_offchain_events_per_sync"`
+	CopyTradeSyncerInterval      time.Duration `mapstructure:"copy_trade_syncer_interval"`
 }
 
 func Load(path string) (*Config, error) {
@@ -145,6 +146,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("worker.ai_batch_min_realized_pnl", 0.0)
 	v.SetDefault("worker.max_markets_per_sync", 100)
 	v.SetDefault("worker.max_offchain_events_per_sync", 50)
+	v.SetDefault("worker.copy_trade_syncer_interval", "5m")
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -214,6 +216,7 @@ func Load(path string) (*Config, error) {
 	cfg.Worker.AIBatchMinRealizedPnL = v.GetFloat64("worker.ai_batch_min_realized_pnl")
 	cfg.Worker.MaxMarketsPerSync = v.GetInt("worker.max_markets_per_sync")
 	cfg.Worker.MaxOffchainEventsPerSync = v.GetInt("worker.max_offchain_events_per_sync")
+	cfg.Worker.CopyTradeSyncerInterval = v.GetDuration("worker.copy_trade_syncer_interval")
 
 	return &cfg, nil
 }

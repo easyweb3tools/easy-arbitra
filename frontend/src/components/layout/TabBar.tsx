@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, Star, MoreHorizontal } from "lucide-react";
+import { Home, Search, Star, Copy, MoreHorizontal } from "lucide-react";
 import { t, type Locale } from "@/lib/i18n";
 
 const tabs = [
   { href: "/", icon: Home, labelKey: "nav.discover" as const },
   { href: "/wallets", icon: Search, labelKey: "nav.explore" as const },
   { href: "/watchlist", icon: Star, labelKey: "nav.tracking" as const },
-  { href: "/markets", icon: MoreHorizontal, labelKey: "nav.more" as const },
+  { href: "/copy-trading", icon: Copy, labelKey: "copyTrade.title" as const },
 ] as const;
 
 export function TabBar({ locale }: { locale: Locale }) {

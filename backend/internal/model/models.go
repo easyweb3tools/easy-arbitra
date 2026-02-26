@@ -203,3 +203,60 @@ type IngestRun struct {
 }
 
 func (IngestRun) TableName() string { return "ingest_run" }
+
+type CopyTradingConfig struct {
+	ID              int64     `gorm:"primaryKey" json:"id"`
+	UserFingerprint string    `gorm:"size:120;uniqueIndex:idx_ctc_user_wallet" json:"user_fingerprint"`
+	WalletID        int64     `gorm:"uniqueIndex:idx_ctc_user_wallet" json:"wallet_id"`
+	Enabled         bool      `gorm:"default:true" json:"enabled"`
+	MaxPositionUSDC float64   `gorm:"type:numeric(12,2);default:1000" json:"max_position_usdc"`
+	RiskPreference  string    `gorm:"size:20;default:moderate" json:"risk_preference"`
+	LastCheckedAt   time.Time `json:"last_checked_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+func (CopyTradingConfig) TableName() string { return "copy_trading_config" }
+
+type CopyTradeDecision struct {
+	ID            int64          `gorm:"primaryKey" json:"id"`
+	ConfigID      int64          `gorm:"index" json:"config_id"`
+	LeaderTradeID *int64         `json:"leader_trade_id,omitempty"`
+	MarketID      *int64         `json:"market_id,omitempty"`
+	MarketTitle   string         `json:"market_title"`
+	Decision      string         `gorm:"size:10" json:"decision"`
+	Confidence    float64        `gorm:"type:numeric(4,3)" json:"confidence"`
+	Outcome       string         `gorm:"size:5" json:"outcome"`
+	Action        string         `gorm:"size:5" json:"action"`
+	Price         float64        `gorm:"type:numeric(12,6)" json:"price"`
+	SizeUSDC      float64        `gorm:"type:numeric(12,2)" json:"size_usdc"`
+	StopLossPrice *float64       `gorm:"type:numeric(12,6)" json:"stop_loss_price,omitempty"`
+	Reasoning     string         `json:"reasoning"`
+	ReasoningEn   string         `json:"reasoning_en"`
+	RiskNotes     datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"risk_notes"`
+	ModelID       string         `gorm:"size:50" json:"model_id"`
+	InputTokens   int            `json:"input_tokens"`
+	OutputTokens  int            `json:"output_tokens"`
+	LatencyMS     int            `json:"latency_ms"`
+	Status        string         `gorm:"size:20;default:pending;index" json:"status"`
+	ExecutedAt    *time.Time     `json:"executed_at,omitempty"`
+	ClosedAt      *time.Time     `json:"closed_at,omitempty"`
+	ClosePrice    *float64       `gorm:"type:numeric(12,6)" json:"close_price,omitempty"`
+	RealizedPnL   *float64       `gorm:"type:numeric(12,4)" json:"realized_pnl,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
+func (CopyTradeDecision) TableName() string { return "copy_trade_decision" }
+
+type CopyTradeDailyPerf struct {
+	ConfigID      int64     `gorm:"primaryKey" json:"config_id"`
+	PerfDate      time.Time `gorm:"primaryKey;type:date" json:"perf_date"`
+	TotalCopies   int       `json:"total_copies"`
+	Profitable    int       `json:"profitable"`
+	TotalPnL      float64   `gorm:"type:numeric(12,4)" json:"total_pnl"`
+	TotalExposure float64   `gorm:"type:numeric(12,2)" json:"total_exposure"`
+	Skipped       int       `json:"skipped"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (CopyTradeDailyPerf) TableName() string { return "copy_trade_daily_perf" }
