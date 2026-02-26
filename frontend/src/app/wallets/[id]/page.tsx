@@ -3,20 +3,23 @@ import {
   getWalletAIReport,
   getWalletAIReportHistory,
   getWalletDecisionCard,
-  getWalletExplanation,
+  getWalletPnLHistory,
+  getWalletPositions,
   getWalletProfile,
-  getWalletShareCard,
+  getWalletTrades,
 } from "@/lib/api";
 import { TriggerAnalysisButton } from "@/components/ai/TriggerAnalysisButton";
-import { ShareCardPanel } from "@/components/share/ShareCardPanel";
 import { WatchlistToggleButton } from "@/components/watchlist/WatchlistToggleButton";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { StatCell } from "@/components/ui/StatCell";
-import { CategoryTag } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { t } from "@/lib/i18n";
 import { getLocaleFromCookies } from "@/lib/i18n-server";
 import { DecisionCard } from "@/components/wallet/DecisionCard";
+import { AccountInfoCard } from "@/components/wallet/AccountInfoCard";
+import { PnLChart } from "@/components/wallet/PnLChart";
+import { PositionsList } from "@/components/wallet/PositionsList";
+import { TradeHistory } from "@/components/wallet/TradeHistory";
 
 export const dynamic = "force-dynamic";
 
@@ -31,13 +34,25 @@ function toRiskWarnings(report: { risk_warnings?: string[]; report: unknown }): 
   return fromReport.filter((v): v is string => typeof v === "string" && v.trim() !== "");
 }
 
-export default async function WalletProfilePage({ params }: { params: { id: string } }) {
+export default async function WalletProfilePage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { trades_page?: string };
+}) {
   const locale = await getLocaleFromCookies();
-  const [profile, explanation, shareCard, decisionCard] = await Promise.all([
+  const tradesPage = Math.max(1, parseInt(searchParams.trades_page || "1", 10) || 1);
+
+  const [profile, decisionCard, pnlHistory, positions, trades] = await Promise.all([
     getWalletProfile(params.id),
-    getWalletExplanation(params.id),
-    getWalletShareCard(params.id),
-    getWalletDecisionCard(params.id),
+    getWalletDecisionCard(params.id).catch(() => null),
+    getWalletPnLHistory(params.id, 90).catch(() => []),
+    getWalletPositions(params.id).catch(() => []),
+    getWalletTrades(params.id, new URLSearchParams({ page: String(tradesPage), page_size: "20" })).catch(() => ({
+      items: [],
+      pagination: { page: tradesPage, page_size: 20, total: 0 },
+    })),
   ]);
 
   let aiReport = null;
@@ -53,58 +68,39 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
 
   return (
     <section className="space-y-8 animate-fade-in">
-      {/* ── Profile Header ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-title-1 tracking-tight text-label-primary">{profile.wallet.pseudonym || profile.wallet.address}</h1>
-          <p className="mt-1 truncate font-mono text-footnote text-label-quaternary">{profile.wallet.address}</p>
-          {profile.strategy && (
-            <div className="mt-3 flex flex-wrap items-center gap-2.5">
-              <CategoryTag>{profile.strategy.strategy_type}</CategoryTag>
-              <span className="text-footnote text-label-tertiary">
-                Score <span className="font-bold tabular-nums text-label-primary">{profile.strategy.smart_score}</span>
-              </span>
-              <span className="h-3.5 w-px bg-separator" />
-              <span className="text-footnote text-label-tertiary">{profile.strategy.info_edge_level}</span>
-            </div>
-          )}
-        </div>
-        <WatchlistToggleButton
-          walletID={profile.wallet.id}
+      {/* ── 1. Account Info Card ── */}
+      <AccountInfoCard profile={profile} decisionCard={decisionCard} locale={locale} />
+
+      {/* ── 2. P&L Chart ── */}
+      {pnlHistory.length > 0 && (
+        <PnLChart
+          data={pnlHistory}
           labels={{
-            follow: t(locale, "watchlist.follow"),
-            unfollow: t(locale, "watchlist.unfollow"),
-            following: t(locale, "watchlist.following"),
-            failed: t(locale, "watchlist.failed"),
+            title: t(locale, "pnlChart.title"),
+            d7: t(locale, "pnlChart.7d"),
+            d30: t(locale, "pnlChart.30d"),
+            d90: t(locale, "pnlChart.90d"),
           }}
         />
-      </div>
-
-      {/* ── Decision Card ── */}
-      <DecisionCard card={decisionCard} locale={locale} />
-
-      {/* ── Recent Events ── */}
-      {profile.recent_events && profile.recent_events.length > 0 && (
-        <div>
-          <SectionHeader title={locale === "zh" ? "近期动态" : "Recent Events"} />
-          <Card padding={false}>
-            {profile.recent_events.slice(0, 6).map((event) => (
-              <div key={`${event.event_type}-${event.event_id}`} className="border-b border-separator/60 px-5 py-4 last:border-b-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-subheadline font-medium text-label-primary">{event.event_type}</p>
-                  {event.action_required && (
-                    <span className="rounded-full bg-tint-red/10 px-2.5 py-0.5 text-caption-1 font-semibold text-tint-red">{locale === "zh" ? "需行动" : "Action"}</span>
-                  )}
-                </div>
-                <p className="mt-1 text-footnote text-label-tertiary leading-relaxed">{locale === "zh" ? event.suggestion_zh : event.suggestion}</p>
-                <p className="mt-1 text-caption-2 text-label-quaternary">{event.event_time}</p>
-              </div>
-            ))}
-          </Card>
-        </div>
       )}
 
-      {/* ── AI Analysis ── */}
+      {/* ── 3. Positions ── */}
+      <PositionsList positions={positions} locale={locale} />
+
+      {/* ── 4. Trade History ── */}
+      <TradeHistory
+        items={trades.items}
+        locale={locale}
+        page={trades.pagination.page}
+        pageSize={trades.pagination.page_size}
+        total={trades.pagination.total}
+        walletId={params.id}
+      />
+
+      {/* ── 5. Decision Card ── */}
+      {decisionCard && <DecisionCard card={decisionCard} locale={locale} />}
+
+      {/* ── 6. AI Analysis ── */}
       <Card variant="prominent">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-title-3 text-label-primary">{t(locale, "profile.aiAnalysis")}</h2>
@@ -170,35 +166,18 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
         )}
       </Card>
 
-      {/* ── Layer 1 Facts ── */}
-      <div>
-        <SectionHeader title={t(locale, "profile.layer1")} />
-        <Card>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCell label={t(locale, "profile.realizedPnl")} value={profile.layer1_facts.realized_pnl.toFixed(2)} numericValue={profile.layer1_facts.realized_pnl} />
-            <StatCell label={t(locale, "profile.tradingPnl")} value={profile.layer1_facts.trading_pnl.toFixed(2)} numericValue={profile.layer1_facts.trading_pnl} />
-            <StatCell label={t(locale, "profile.makerRebates")} value={profile.layer1_facts.maker_rebates.toFixed(2)} numericValue={profile.layer1_facts.maker_rebates} />
-            <StatCell label={t(locale, "profile.feesPaid")} value={profile.layer1_facts.fees_paid.toFixed(2)} numericValue={profile.layer1_facts.fees_paid} />
-            <StatCell label={t(locale, "profile.totalTrades")} value={String(profile.layer1_facts.total_trades)} />
-            <StatCell label={t(locale, "profile.volume30d")} value={profile.layer1_facts.volume_30d.toFixed(2)} />
-          </div>
-        </Card>
-      </div>
+      {/* ── 7. Layer 3 Info-Edge (compact) ── */}
+      <Card>
+        <h3 className="mb-3 text-subheadline font-semibold text-label-secondary">{t(locale, "profile.layer3")}</h3>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <StatCell label={t(locale, "profile.label")} value={profile.layer3_info_edge.label} />
+          <StatCell label={t(locale, "profile.meanDt")} value={`${profile.layer3_info_edge.mean_delta_minutes.toFixed(2)} min`} />
+          <StatCell label={t(locale, "profile.samples")} value={String(profile.layer3_info_edge.samples)} />
+          <StatCell label={t(locale, "profile.pvalue")} value={profile.layer3_info_edge.p_value.toFixed(4)} />
+        </div>
+      </Card>
 
-      {/* ── Layer 3 Info-Edge ── */}
-      <div>
-        <SectionHeader title={t(locale, "profile.layer3")} />
-        <Card>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCell label={t(locale, "profile.label")} value={profile.layer3_info_edge.label} />
-            <StatCell label={t(locale, "profile.meanDt")} value={`${profile.layer3_info_edge.mean_delta_minutes.toFixed(2)} min`} />
-            <StatCell label={t(locale, "profile.samples")} value={String(profile.layer3_info_edge.samples)} />
-            <StatCell label={t(locale, "profile.pvalue")} value={profile.layer3_info_edge.p_value.toFixed(4)} />
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Disclosures ── */}
+      {/* ── 8. Disclosures ── */}
       <div className="rounded-2xl bg-tint-orange/[0.05] p-5">
         <div className="space-y-1.5">
           {profile.meta.disclosures.map((d) => (
@@ -206,36 +185,6 @@ export default async function WalletProfilePage({ params }: { params: { id: stri
           ))}
         </div>
       </div>
-
-      {/* ── Share Card ── */}
-      <ShareCardPanel
-        card={shareCard}
-        locale={locale}
-        labels={{
-          title: t(locale, "share.title"),
-          preview: t(locale, "share.preview"),
-          copyLink: t(locale, "share.copyLink"),
-          copied: t(locale, "share.copied"),
-          copyFailed: t(locale, "share.copyFailed"),
-          trades: t(locale, "share.trades"),
-          realizedPnl: t(locale, "share.realizedPnl"),
-          score: t(locale, "share.score"),
-          updatedAt: t(locale, "share.updatedAt"),
-        }}
-      />
-
-      {/* ── Evidence (raw JSON) ── */}
-      <details className="group rounded-2xl border border-separator/50 bg-surface-secondary shadow-elevation-1 overflow-hidden">
-        <summary className="flex cursor-pointer items-center gap-2.5 px-6 py-4 text-headline text-label-primary transition-colors duration-200 hover:bg-surface-tertiary/70">
-          <ChevronRight className="h-4 w-4 transition-transform duration-200 group-open:rotate-90" />
-          {t(locale, "profile.evidence")}
-        </summary>
-        <div className="border-t border-separator/50 p-6">
-          <pre className="overflow-auto rounded-xl bg-surface-tertiary/70 p-4 font-mono text-caption-1 text-label-secondary">
-            {JSON.stringify(explanation.layer2, null, 2)}
-          </pre>
-        </div>
-      </details>
     </section>
   );
 }

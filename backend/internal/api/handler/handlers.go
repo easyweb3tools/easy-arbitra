@@ -494,6 +494,65 @@ func (h *Handlers) GetWatchlistSummary(c *gin.Context) {
 	response.OK(c, rows)
 }
 
+func (h *Handlers) GetWalletPnLHistory(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid wallet id")
+		return
+	}
+	limit := parsePositiveInt(c.DefaultQuery("limit", "90"), 90)
+	if limit > 365 {
+		limit = 365
+	}
+	rows, err := h.walletService.GetPnLHistory(c.Request.Context(), id, limit)
+	if err != nil {
+		if err == service.ErrNotFound {
+			response.NotFound(c, "wallet not found")
+			return
+		}
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
+func (h *Handlers) ListWalletTrades(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid wallet id")
+		return
+	}
+	page, pageSize := parsePaging(c)
+	rows, err := h.walletService.ListTrades(c.Request.Context(), id, page, pageSize)
+	if err != nil {
+		if err == service.ErrNotFound {
+			response.NotFound(c, "wallet not found")
+			return
+		}
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
+func (h *Handlers) ListWalletPositions(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid wallet id")
+		return
+	}
+	rows, err := h.walletService.ListPositions(c.Request.Context(), id)
+	if err != nil {
+		if err == service.ErrNotFound {
+			response.NotFound(c, "wallet not found")
+			return
+		}
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, rows)
+}
+
 func parsePaging(c *gin.Context) (int, int) {
 	page := parsePositiveInt(c.DefaultQuery("page", "1"), 1)
 	pageSize := parsePositiveInt(c.DefaultQuery("page_size", "20"), 20)

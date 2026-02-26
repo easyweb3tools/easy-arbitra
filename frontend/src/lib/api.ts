@@ -7,10 +7,13 @@ import {
   OpsHighlights,
   OverviewStats,
   Paged,
+  PnLHistoryPoint,
   PortfolioItem,
   PotentialWallet,
+  TradeHistoryItem,
   Wallet,
   WalletDecisionCard,
+  WalletPosition,
   WatchlistFeedItem,
   WatchlistItem,
   WatchlistSummary,
@@ -151,4 +154,17 @@ export async function removeFromWatchlist(walletID: number, fingerprint: string)
     method: "DELETE",
     headers: { "X-User-Fingerprint": fingerprint }
   });
+}
+
+export function getWalletPnLHistory(id: string, limit = 90) {
+  return getJSON<PnLHistoryPoint[]>(`/wallets/${id}/pnl-history?limit=${limit}`);
+}
+
+export function getWalletTrades(id: string, params?: URLSearchParams) {
+  const q = params?.toString() || "";
+  return getJSON<Paged<TradeHistoryItem>>(`/wallets/${id}/trades${q ? `?${q}` : ""}`);
+}
+
+export function getWalletPositions(id: string) {
+  return getJSON<WalletPosition[]>(`/wallets/${id}/positions`);
 }

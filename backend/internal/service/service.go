@@ -950,6 +950,153 @@ func walletToView(w model.Wallet) WalletView {
 	return WalletView{ID: w.ID, Address: polyaddr.BytesToHex(w.Address), Pseudonym: w.Pseudonym, Tracked: w.IsTracked}
 }
 
+type PnLHistoryPoint struct {
+	Date          string  `json:"date"`
+	Pnl7D         float64 `json:"pnl_7d"`
+	Pnl30D        float64 `json:"pnl_30d"`
+	Pnl90D        float64 `json:"pnl_90d"`
+	TradeCount30D int     `json:"trade_count_30d"`
+	ActiveDays30D int     `json:"active_days_30d"`
+	AvgEdge       float64 `json:"avg_edge"`
+}
+
+type TradeHistoryView struct {
+	ID          int64   `json:"id"`
+	BlockTime   string  `json:"block_time"`
+	MarketTitle string  `json:"market_title"`
+	MarketSlug  string  `json:"market_slug"`
+	Outcome     string  `json:"outcome"`
+	Action      string  `json:"action"`
+	Price       float64 `json:"price"`
+	Size        float64 `json:"size"`
+	FeePaid     float64 `json:"fee_paid"`
+	IsMaker     bool    `json:"is_maker"`
+}
+
+type TradeHistoryResult struct {
+	Items      []TradeHistoryView `json:"items"`
+	Pagination Pagination         `json:"pagination"`
+}
+
+type WalletPositionView struct {
+	MarketID    int64   `json:"market_id"`
+	MarketTitle string  `json:"market_title"`
+	MarketSlug  string  `json:"market_slug"`
+	Category    string  `json:"category"`
+	NetSize     float64 `json:"net_size"`
+	AvgPrice    float64 `json:"avg_price"`
+	TotalVolume float64 `json:"total_volume"`
+	TradeCount  int64   `json:"trade_count"`
+	LastTradeAt string  `json:"last_trade_at"`
+}
+
+func (s *WalletService) GetPnLHistory(ctx context.Context, walletID int64, limit int) ([]PnLHistoryPoint, error) {
+	if _, err := s.walletRepo.GetByID(ctx, walletID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	rows, err := s.featureRepo.ListByWalletID(ctx, walletID, limit)
+	if err != nil {
+		return nil, err
+	}
+	points := make([]PnLHistoryPoint, 0, len(rows))
+	for _, row := range rows {
+		points = append(points, PnLHistoryPoint{
+			Date:          row.FeatureDate.Format("2006-01-02"),
+			Pnl7D:         row.Pnl7d,
+			Pnl30D:        row.Pnl30d,
+			Pnl90D:        row.Pnl90d,
+			TradeCount30D: row.TradeCount30d,
+			ActiveDays30D: row.ActiveDays30d,
+			AvgEdge:       row.AvgEdge,
+		})
+	}
+	return points, nil
+}
+
+func (s *WalletService) ListTrades(ctx context.Context, walletID int64, page int, pageSize int) (*TradeHistoryResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	if _, err := s.walletRepo.GetByID(ctx, walletID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	rows, total, err := s.tradeRepo.ListByWalletID(ctx, walletID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]TradeHistoryView, 0, len(rows))
+	for _, row := range rows {
+		outcome := "Yes"
+		if row.TokenSide == 1 {
+			outcome = "No"
+		}
+		action := "Buy"
+		if row.TradeSide == 1 {
+			action = "Sell"
+		}
+		items = append(items, TradeHistoryView{
+			ID:          row.TradeID,
+			BlockTime:   row.BlockTime.UTC().Format(time.RFC3339),
+			MarketTitle: row.MarketTitle,
+			MarketSlug:  row.MarketSlug,
+			Outcome:     outcome,
+			Action:      action,
+			Price:       row.Price,
+			Size:        row.Size,
+			FeePaid:     row.FeePaid,
+			IsMaker:     row.IsMaker,
+		})
+	}
+	return &TradeHistoryResult{
+		Items: items,
+		Pagination: Pagination{
+			Page:     page,
+			PageSize: pageSize,
+			Total:    total,
+		},
+	}, nil
+}
+
+func (s *WalletService) ListPositions(ctx context.Context, walletID int64) ([]WalletPositionView, error) {
+	if _, err := s.walletRepo.GetByID(ctx, walletID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	rows, err := s.tradeRepo.AggregatePositionsByWalletID(ctx, walletID)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]WalletPositionView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, WalletPositionView{
+			MarketID:    row.MarketID,
+			MarketTitle: row.MarketTitle,
+			MarketSlug:  row.MarketSlug,
+			Category:    row.Category,
+			NetSize:     row.NetSize,
+			AvgPrice:    row.AvgPrice,
+			TotalVolume: row.TotalVolume,
+			TradeCount:  row.TradeCount,
+			LastTradeAt: row.LastTradeAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return views, nil
+}
+
 func (s *WatchlistService) AddByWalletID(ctx context.Context, walletID int64, userFingerprint string) error {
 	userFingerprint = strings.TrimSpace(userFingerprint)
 	if userFingerprint == "" {

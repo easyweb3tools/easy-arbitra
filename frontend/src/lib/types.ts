@@ -263,3 +263,38 @@ export type ApiEnvelope<T> = {
   data: T;
   error?: string;
 };
+
+export type PnLHistoryPoint = {
+  date: string;
+  pnl_7d: number;
+  pnl_30d: number;
+  pnl_90d: number;
+  trade_count_30d: number;
+  active_days_30d: number;
+  avg_edge: number;
+};
+
+export type TradeHistoryItem = {
+  id: number;
+  block_time: string;
+  market_title: string;
+  market_slug: string;
+  outcome: "Yes" | "No";
+  action: "Buy" | "Sell";
+  price: number;
+  size: number;
+  fee_paid: number;
+  is_maker: boolean;
+};
+
+export type WalletPosition = {
+  market_id: number;
+  market_title: string;
+  market_slug: string;
+  category: string;
+  net_size: number;
+  avg_price: number;
+  total_volume: number;
+  trade_count: number;
+  last_trade_at: string;
+};

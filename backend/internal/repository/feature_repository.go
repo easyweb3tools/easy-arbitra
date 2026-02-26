@@ -84,6 +84,22 @@ func (r *FeatureRepository) LatestByWalletID(ctx context.Context, walletID int64
 	return &row, nil
 }
 
+func (r *FeatureRepository) ListByWalletID(ctx context.Context, walletID int64, limit int) ([]model.WalletFeaturesDaily, error) {
+	if limit <= 0 {
+		limit = 90
+	}
+	if limit > 365 {
+		limit = 365
+	}
+	var rows []model.WalletFeaturesDaily
+	err := r.db.WithContext(ctx).
+		Where("wallet_id = ?", walletID).
+		Order("feature_date desc").
+		Limit(limit).
+		Find(&rows).Error
+	return rows, err
+}
+
 func (r *ScoreRepository) UpsertLatest(ctx context.Context, row model.WalletScore) error {
 	return r.db.WithContext(ctx).Create(&row).Error
 }

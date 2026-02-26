@@ -74,6 +74,31 @@ type WalletTimingSummary struct {
 	Samples          int64   `json:"samples"`
 }
 
+type TradeHistoryRow struct {
+	TradeID   int64     `gorm:"column:trade_id" json:"trade_id"`
+	BlockTime time.Time `gorm:"column:block_time" json:"block_time"`
+	MarketTitle string  `gorm:"column:market_title" json:"market_title"`
+	MarketSlug  string  `gorm:"column:market_slug" json:"market_slug"`
+	TokenSide   int16   `gorm:"column:token_side" json:"token_side"`
+	TradeSide   int16   `gorm:"column:trade_side" json:"trade_side"`
+	Price       float64 `gorm:"column:price" json:"price"`
+	Size        float64 `gorm:"column:size" json:"size"`
+	FeePaid     float64 `gorm:"column:fee_paid" json:"fee_paid"`
+	IsMaker     bool    `gorm:"column:is_maker" json:"is_maker"`
+}
+
+type WalletPositionRow struct {
+	MarketID    int64      `gorm:"column:market_id" json:"market_id"`
+	MarketTitle string     `gorm:"column:market_title" json:"market_title"`
+	MarketSlug  string     `gorm:"column:market_slug" json:"market_slug"`
+	Category    string     `gorm:"column:category" json:"category"`
+	NetSize     float64    `gorm:"column:net_size" json:"net_size"`
+	AvgPrice    float64    `gorm:"column:avg_price" json:"avg_price"`
+	TotalVolume float64    `gorm:"column:total_volume" json:"total_volume"`
+	TradeCount  int64      `gorm:"column:trade_count" json:"trade_count"`
+	LastTradeAt time.Time  `gorm:"column:last_trade_at" json:"last_trade_at"`
+}
+
 type LeaderboardRow struct {
 	WalletID      int64   `json:"wallet_id"`
 	Address       []byte  `json:"-"`
@@ -970,6 +995,77 @@ FROM paired`, walletID, walletID).Scan(&out).Error
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (r *TradeRepository) ListByWalletID(ctx context.Context, walletID int64, limit int, offset int) ([]TradeHistoryRow, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var total int64
+	err := r.db.WithContext(ctx).Raw(`
+SELECT COUNT(*)
+FROM trade_fill tf
+WHERE tf.taker_wallet_id = ? OR tf.maker_wallet_id = ?`, walletID, walletID).Scan(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	var rows []TradeHistoryRow
+	err = r.db.WithContext(ctx).Raw(`
+SELECT
+  tf.id AS trade_id,
+  tf.block_time,
+  m.title AS market_title,
+  m.slug AS market_slug,
+  t.side AS token_side,
+  tf.side AS trade_side,
+  tf.price,
+  tf.size,
+  tf.fee_paid,
+  CASE WHEN tf.maker_wallet_id = ? THEN true ELSE false END AS is_maker
+FROM trade_fill tf
+JOIN token t ON t.id = tf.token_id
+JOIN market m ON m.id = t.market_id
+WHERE tf.taker_wallet_id = ? OR tf.maker_wallet_id = ?
+ORDER BY tf.block_time DESC
+LIMIT ? OFFSET ?`, walletID, walletID, walletID, limit, offset).Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+func (r *TradeRepository) AggregatePositionsByWalletID(ctx context.Context, walletID int64) ([]WalletPositionRow, error) {
+	var rows []WalletPositionRow
+	err := r.db.WithContext(ctx).Raw(`
+SELECT
+  m.id AS market_id,
+  m.title AS market_title,
+  m.slug AS market_slug,
+  m.category,
+  COALESCE(SUM(CASE
+    WHEN tf.side = 0 THEN tf.size
+    ELSE -tf.size
+  END), 0) AS net_size,
+  CASE WHEN SUM(tf.size) > 0 THEN SUM(tf.price * tf.size) / SUM(tf.size) ELSE 0 END AS avg_price,
+  COALESCE(SUM(tf.price * tf.size), 0) AS total_volume,
+  COUNT(*) AS trade_count,
+  MAX(tf.block_time) AS last_trade_at
+FROM trade_fill tf
+JOIN token t ON t.id = tf.token_id
+JOIN market m ON m.id = t.market_id
+WHERE tf.taker_wallet_id = ? OR tf.maker_wallet_id = ?
+GROUP BY m.id, m.title, m.slug, m.category
+ORDER BY MAX(tf.block_time) DESC`, walletID, walletID).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (r *ScoreRepository) LatestByWalletID(ctx context.Context, walletID int64) (*model.WalletScore, error) {
