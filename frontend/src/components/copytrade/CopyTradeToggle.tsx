@@ -19,17 +19,19 @@ export function CopyTradeToggle({
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [maxPosition, setMaxPosition] = useState("1000");
   const [riskPref, setRiskPref] = useState<"conservative" | "moderate" | "aggressive">("moderate");
 
   async function handleEnable() {
     setLoading(true);
+    setError(null);
     try {
       await enableCopyTrading(walletID, parseFloat(maxPosition) || 1000, riskPref);
       onToggle?.();
       setShowSettings(false);
-    } catch {
-      // silent
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Enable failed");
     } finally {
       setLoading(false);
     }
@@ -37,11 +39,12 @@ export function CopyTradeToggle({
 
   async function handleDisable() {
     setLoading(true);
+    setError(null);
     try {
       await disableCopyTrading(walletID);
       onToggle?.();
-    } catch {
-      // silent
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Disable failed");
     } finally {
       setLoading(false);
     }
@@ -104,6 +107,10 @@ export function CopyTradeToggle({
             <li>{t(locale, "copyTrade.agentExplain")}</li>
           </ul>
         </div>
+
+        {error && (
+          <p className="text-footnote text-tint-red">{error}</p>
+        )}
 
         <div className="flex gap-2">
           <Button variant="filled" size="small" loading={loading} onClick={handleEnable}>
