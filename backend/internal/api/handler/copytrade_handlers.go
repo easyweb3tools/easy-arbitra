@@ -25,7 +25,7 @@ func (h *Handlers) EnableCopyTrading(c *gin.Context) {
 		response.BadRequest(c, "wallet_id is required")
 		return
 	}
-	cfg, err := h.copyTradeService.EnableCopyTrading(c.Request.Context(), userFingerprint(c), req.WalletID, req.MaxPositionUSDC, req.RiskPreference)
+	cfg, err := h.copyTradeService.EnableCopyTrading(c.Request.Context(), userIdentifier(c), req.WalletID, req.MaxPositionUSDC, req.RiskPreference)
 	if err != nil {
 		if errors.Is(err, copytrade.ErrNotFound) {
 			response.NotFound(c, "wallet not found")
@@ -49,7 +49,7 @@ func (h *Handlers) DisableCopyTrading(c *gin.Context) {
 		response.BadRequest(c, "wallet_id is required")
 		return
 	}
-	if err := h.copyTradeService.DisableCopyTrading(c.Request.Context(), userFingerprint(c), req.WalletID); err != nil {
+	if err := h.copyTradeService.DisableCopyTrading(c.Request.Context(), userIdentifier(c), req.WalletID); err != nil {
 		response.Internal(c, err.Error())
 		return
 	}
@@ -70,7 +70,7 @@ func (h *Handlers) UpdateCopyTradeSettings(c *gin.Context) {
 		response.BadRequest(c, "wallet_id is required")
 		return
 	}
-	cfg, err := h.copyTradeService.UpdateSettings(c.Request.Context(), userFingerprint(c), req.WalletID, req.MaxPositionUSDC, req.RiskPreference)
+	cfg, err := h.copyTradeService.UpdateSettings(c.Request.Context(), userIdentifier(c), req.WalletID, req.MaxPositionUSDC, req.RiskPreference)
 	if err != nil {
 		if errors.Is(err, copytrade.ErrNotFound) {
 			response.NotFound(c, "wallet not found")
@@ -83,7 +83,7 @@ func (h *Handlers) UpdateCopyTradeSettings(c *gin.Context) {
 }
 
 func (h *Handlers) ListCopyTradeConfigs(c *gin.Context) {
-	configs, err := h.copyTradeService.ListConfigs(c.Request.Context(), userFingerprint(c))
+	configs, err := h.copyTradeService.ListConfigs(c.Request.Context(), userIdentifier(c))
 	if err != nil {
 		response.Internal(c, err.Error())
 		return
@@ -97,7 +97,7 @@ func (h *Handlers) GetCopyTradeConfig(c *gin.Context) {
 		response.BadRequest(c, "invalid wallet_id")
 		return
 	}
-	cfg, err := h.copyTradeService.GetConfig(c.Request.Context(), userFingerprint(c), walletID)
+	cfg, err := h.copyTradeService.GetConfig(c.Request.Context(), userIdentifier(c), walletID)
 	if err != nil {
 		if errors.Is(err, copytrade.ErrNotFound) {
 			response.NotFound(c, "config not found")
@@ -110,7 +110,7 @@ func (h *Handlers) GetCopyTradeConfig(c *gin.Context) {
 }
 
 func (h *Handlers) GetCopyTradeDashboard(c *gin.Context) {
-	dashboard, err := h.copyTradeService.GetDashboard(c.Request.Context(), userFingerprint(c))
+	dashboard, err := h.copyTradeService.GetDashboard(c.Request.Context(), userIdentifier(c))
 	if err != nil {
 		response.Internal(c, err.Error())
 		return
@@ -125,7 +125,7 @@ func (h *Handlers) ListCopyTradeDecisions(c *gin.Context) {
 		return
 	}
 	page, pageSize := parsePaging(c)
-	result, err := h.copyTradeService.ListDecisions(c.Request.Context(), userFingerprint(c), walletID, page, pageSize)
+	result, err := h.copyTradeService.ListDecisions(c.Request.Context(), userIdentifier(c), walletID, page, pageSize)
 	if err != nil {
 		if errors.Is(err, copytrade.ErrNotFound) {
 			response.NotFound(c, "config not found")
@@ -143,7 +143,7 @@ func (h *Handlers) GetCopyTradePerformance(c *gin.Context) {
 		response.BadRequest(c, "invalid wallet_id")
 		return
 	}
-	perf, err := h.copyTradeService.GetPerformance(c.Request.Context(), userFingerprint(c), walletID)
+	perf, err := h.copyTradeService.GetPerformance(c.Request.Context(), userIdentifier(c), walletID)
 	if err != nil {
 		if errors.Is(err, copytrade.ErrNotFound) {
 			response.NotFound(c, "config not found")
@@ -156,7 +156,7 @@ func (h *Handlers) GetCopyTradePerformance(c *gin.Context) {
 }
 
 func (h *Handlers) ListCopyTradePositions(c *gin.Context) {
-	positions, err := h.copyTradeService.ListOpenPositions(c.Request.Context(), userFingerprint(c))
+	positions, err := h.copyTradeService.ListOpenPositions(c.Request.Context(), userIdentifier(c))
 	if err != nil {
 		response.Internal(c, err.Error())
 		return
@@ -170,7 +170,7 @@ func (h *Handlers) CloseCopyTradePosition(c *gin.Context) {
 		response.BadRequest(c, "invalid decision id")
 		return
 	}
-	dec, err := h.copyTradeService.ClosePosition(c.Request.Context(), userFingerprint(c), decisionID)
+	dec, err := h.copyTradeService.ClosePosition(c.Request.Context(), userIdentifier(c), decisionID)
 	if err != nil {
 		if errors.Is(err, copytrade.ErrNotFound) {
 			response.NotFound(c, "position not found")

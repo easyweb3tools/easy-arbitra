@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Star, Activity, AlertTriangle } from "lucide-react";
 import { getWatchlist, getWatchlistFeed, getWatchlistSummary } from "@/lib/api";
-import { ensureFingerprint } from "@/lib/fingerprint";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { SkeletonRow } from "@/components/ui/Skeleton";
@@ -24,7 +23,6 @@ type Labels = {
 };
 
 export function WatchlistPageClient({ labels, locale }: { labels: Labels; locale?: Locale }) {
-  const fingerprint = useMemo(() => ensureFingerprint(), []);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [feed, setFeed] = useState<WatchlistFeedItem[]>([]);
@@ -36,9 +34,9 @@ export function WatchlistPageClient({ labels, locale }: { labels: Labels; locale
       setLoading(true);
       try {
         const [wl, fd, sm] = await Promise.all([
-          getWatchlist(new URLSearchParams({ page: "1", page_size: "50" }), fingerprint),
-          getWatchlistFeed(new URLSearchParams({ page: "1", page_size: "50" }), fingerprint),
-          getWatchlistSummary(fingerprint),
+          getWatchlist(new URLSearchParams({ page: "1", page_size: "50" })),
+          getWatchlistFeed(new URLSearchParams({ page: "1", page_size: "50" })),
+          getWatchlistSummary(),
         ]);
         if (!cancelled) {
           setItems(wl.items);
@@ -53,7 +51,7 @@ export function WatchlistPageClient({ labels, locale }: { labels: Labels; locale
     return () => {
       cancelled = true;
     };
-  }, [fingerprint]);
+  }, []);
 
   if (loading) {
     return (

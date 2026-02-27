@@ -38,6 +38,14 @@ func TooManyRequests(c *gin.Context, msg string) {
 	fail(c, 429, "rate_limited", msg)
 }
 
+func Unauthorized(c *gin.Context, msg string) {
+	fail(c, 401, "unauthorized", msg)
+}
+
+func Conflict(c *gin.Context, msg string) {
+	fail(c, 409, "conflict", msg)
+}
+
 func fail(c *gin.Context, status int, code string, msg string) {
 	c.JSON(status, Envelope{Error: msg, Code: code, TraceID: traceID(c)})
 }

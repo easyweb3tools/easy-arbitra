@@ -13,6 +13,7 @@ import (
 	"easy-arbitra/backend/internal/ai"
 	"easy-arbitra/backend/internal/api"
 	"easy-arbitra/backend/internal/api/handler"
+	"easy-arbitra/backend/internal/auth"
 	"easy-arbitra/backend/internal/client"
 	"easy-arbitra/backend/internal/copytrade"
 	"easy-arbitra/backend/internal/model"
@@ -79,6 +80,7 @@ func main() {
 			&model.CopyTradingConfig{},
 			&model.CopyTradeDecision{},
 			&model.CopyTradeDailyPerf{},
+			&model.User{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
@@ -119,7 +121,8 @@ func main() {
 			return sqlDB.PingContext(c.Request.Context())
 		},
 	)
-	r := api.NewRouter(h)
+	authHandler := auth.NewHandler(db, cfg.Auth)
+	r := api.NewRouter(h, authHandler, cfg.Auth.JWTSecret, cfg.Auth.FrontendURL)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

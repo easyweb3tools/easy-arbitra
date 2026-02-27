@@ -3,15 +3,16 @@ package api
 import (
 	"easy-arbitra/backend/internal/api/handler"
 	"easy-arbitra/backend/internal/api/middleware"
+	"easy-arbitra/backend/internal/auth"
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(h *handler.Handlers) *gin.Engine {
+func NewRouter(h *handler.Handlers, authHandler *auth.Handler, jwtSecret string, frontendURL string) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(frontendURL))
 	r.Use(middleware.RateLimit(30, 60))
 	r.Use(middleware.ErrorHandler())
 
@@ -20,6 +21,11 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
+		// Auth routes (public)
+		authGroup := v1.Group("/auth")
+		authHandler.RegisterRoutes(authGroup)
+
+		// Public routes
 		v1.GET("/wallets", h.ListWallets)
 		v1.GET("/wallets/potential", h.ListPotentialWallets)
 		v1.GET("/wallets/:id", h.GetWallet)
@@ -32,12 +38,6 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 		v1.GET("/wallets/:id/pnl-history", h.GetWalletPnLHistory)
 		v1.GET("/wallets/:id/trades", h.ListWalletTrades)
 		v1.GET("/wallets/:id/positions", h.ListWalletPositions)
-		v1.GET("/watchlist", h.ListWatchlist)
-		v1.POST("/watchlist", h.AddToWatchlist)
-		v1.POST("/watchlist/batch", h.AddToWatchlistBatch)
-		v1.DELETE("/watchlist/:wallet_id", h.RemoveFromWatchlist)
-		v1.GET("/watchlist/feed", h.GetWatchlistFeed)
-		v1.GET("/watchlist/summary", h.GetWatchlistSummary)
 		v1.GET("/portfolios", h.ListPortfolios)
 
 		v1.GET("/markets", h.ListMarkets)
@@ -55,13 +55,28 @@ func NewRouter(h *handler.Handlers) *gin.Engine {
 		ai.GET("/report/:wallet_id", h.GetAIReport)
 		ai.GET("/report/:wallet_id/history", h.ListAIReports)
 
-		ct := v1.Group("/copy-trading")
+		// Public copy-trading endpoint
+		v1.GET("/copy-trading/monitor", h.GetCopyTradeMonitor)
+
+		// Protected routes
+		protected := v1.Group("")
+		protected.Use(auth.AuthRequired(jwtSecret))
+
+		// Protected watchlist routes
+		protected.GET("/watchlist", h.ListWatchlist)
+		protected.POST("/watchlist", h.AddToWatchlist)
+		protected.POST("/watchlist/batch", h.AddToWatchlistBatch)
+		protected.DELETE("/watchlist/:wallet_id", h.RemoveFromWatchlist)
+		protected.GET("/watchlist/feed", h.GetWatchlistFeed)
+		protected.GET("/watchlist/summary", h.GetWatchlistSummary)
+
+		// Protected copy-trading routes
+		ct := protected.Group("/copy-trading")
 		ct.POST("/enable", h.EnableCopyTrading)
 		ct.POST("/disable", h.DisableCopyTrading)
 		ct.PUT("/settings", h.UpdateCopyTradeSettings)
 		ct.GET("/configs", h.ListCopyTradeConfigs)
 		ct.GET("/dashboard", h.GetCopyTradeDashboard)
-		ct.GET("/monitor", h.GetCopyTradeMonitor)
 		ct.GET("/positions", h.ListCopyTradePositions)
 		ct.GET("/:wallet_id", h.GetCopyTradeConfig)
 		ct.GET("/:wallet_id/decisions", h.ListCopyTradeDecisions)

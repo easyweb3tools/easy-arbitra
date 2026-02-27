@@ -34,7 +34,11 @@ const API_BASE =
     : process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 
 async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store", ...init });
+  const res = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    credentials: "include",
+    ...init,
+  });
   if (!res.ok) {
     throw new Error(`API ${res.status}`);
   }
@@ -112,52 +116,39 @@ export function getAnomaly(id: string) {
   return getJSON<AnomalyAlert>(`/anomalies/${id}`);
 }
 
-export function getWatchlist(params: URLSearchParams, fingerprint: string) {
+export function getWatchlist(params: URLSearchParams) {
   const q = params.toString();
-  return getJSON<Paged<WatchlistItem>>(`/watchlist${q ? `?${q}` : ""}`, {
-    headers: { "X-User-Fingerprint": fingerprint }
-  });
+  return getJSON<Paged<WatchlistItem>>(`/watchlist${q ? `?${q}` : ""}`);
 }
 
-export function getWatchlistSummary(fingerprint: string) {
-  return getJSON<WatchlistSummary>("/watchlist/summary", {
-    headers: { "X-User-Fingerprint": fingerprint }
-  });
+export function getWatchlistSummary() {
+  return getJSON<WatchlistSummary>("/watchlist/summary");
 }
 
-export function getWatchlistFeed(params: URLSearchParams, fingerprint: string) {
+export function getWatchlistFeed(params: URLSearchParams) {
   const q = params.toString();
-  return getJSON<Paged<WatchlistFeedItem>>(`/watchlist/feed${q ? `?${q}` : ""}`, {
-    headers: { "X-User-Fingerprint": fingerprint }
-  });
+  return getJSON<Paged<WatchlistFeedItem>>(`/watchlist/feed${q ? `?${q}` : ""}`);
 }
 
-export async function addBatchToWatchlist(walletIDs: number[], fingerprint: string) {
+export async function addBatchToWatchlist(walletIDs: number[]) {
   return getJSON<{ wallet_ids: number[]; watching: boolean }>(`/watchlist/batch`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-User-Fingerprint": fingerprint
-    },
-    body: JSON.stringify({ wallet_ids: walletIDs })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet_ids: walletIDs }),
   });
 }
 
-export async function addToWatchlist(walletID: number, fingerprint: string) {
+export async function addToWatchlist(walletID: number) {
   return getJSON<{ wallet_id: number; watching: boolean }>(`/watchlist`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-User-Fingerprint": fingerprint
-    },
-    body: JSON.stringify({ wallet_id: walletID })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet_id: walletID }),
   });
 }
 
-export async function removeFromWatchlist(walletID: number, fingerprint: string) {
+export async function removeFromWatchlist(walletID: number) {
   return getJSON<{ wallet_id: number; watching: boolean }>(`/watchlist/${walletID}`, {
     method: "DELETE",
-    headers: { "X-User-Fingerprint": fingerprint }
   });
 }
 
@@ -176,71 +167,58 @@ export function getWalletPositions(id: string) {
 
 // ── Copy Trading API ──
 
-export function enableCopyTrading(walletID: number, maxPositionUSDC: number, riskPreference: string, fingerprint: string) {
+export function enableCopyTrading(walletID: number, maxPositionUSDC: number, riskPreference: string) {
   return getJSON<CopyTradingConfig>("/copy-trading/enable", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-User-Fingerprint": fingerprint },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ wallet_id: walletID, max_position_usdc: maxPositionUSDC, risk_preference: riskPreference }),
   });
 }
 
-export function disableCopyTrading(walletID: number, fingerprint: string) {
+export function disableCopyTrading(walletID: number) {
   return getJSON<{ disabled: boolean }>("/copy-trading/disable", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-User-Fingerprint": fingerprint },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ wallet_id: walletID }),
   });
 }
 
-export function updateCopyTradeSettings(walletID: number, maxPositionUSDC: number, riskPreference: string, fingerprint: string) {
+export function updateCopyTradeSettings(walletID: number, maxPositionUSDC: number, riskPreference: string) {
   return getJSON<CopyTradingConfig>("/copy-trading/settings", {
     method: "PUT",
-    headers: { "Content-Type": "application/json", "X-User-Fingerprint": fingerprint },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ wallet_id: walletID, max_position_usdc: maxPositionUSDC, risk_preference: riskPreference }),
   });
 }
 
-export function getCopyTradeConfigs(fingerprint: string) {
-  return getJSON<CopyTradingConfig[]>("/copy-trading/configs", {
-    headers: { "X-User-Fingerprint": fingerprint },
-  });
+export function getCopyTradeConfigs() {
+  return getJSON<CopyTradingConfig[]>("/copy-trading/configs");
 }
 
-export function getCopyTradeConfig(walletID: number, fingerprint: string) {
-  return getJSON<CopyTradingConfig>(`/copy-trading/${walletID}`, {
-    headers: { "X-User-Fingerprint": fingerprint },
-  });
+export function getCopyTradeConfig(walletID: number) {
+  return getJSON<CopyTradingConfig>(`/copy-trading/${walletID}`);
 }
 
-export function getCopyTradeDashboard(fingerprint: string) {
-  return getJSON<CopyTradeDashboard>("/copy-trading/dashboard", {
-    headers: { "X-User-Fingerprint": fingerprint },
-  });
+export function getCopyTradeDashboard() {
+  return getJSON<CopyTradeDashboard>("/copy-trading/dashboard");
 }
 
-export function getCopyTradeDecisions(walletID: number, params: URLSearchParams, fingerprint: string) {
+export function getCopyTradeDecisions(walletID: number, params: URLSearchParams) {
   const q = params.toString();
-  return getJSON<Paged<CopyTradeDecision>>(`/copy-trading/${walletID}/decisions${q ? `?${q}` : ""}`, {
-    headers: { "X-User-Fingerprint": fingerprint },
-  });
+  return getJSON<Paged<CopyTradeDecision>>(`/copy-trading/${walletID}/decisions${q ? `?${q}` : ""}`);
 }
 
-export function getCopyTradePerformance(walletID: number, fingerprint: string) {
-  return getJSON<CopyTradePerformance>(`/copy-trading/${walletID}/performance`, {
-    headers: { "X-User-Fingerprint": fingerprint },
-  });
+export function getCopyTradePerformance(walletID: number) {
+  return getJSON<CopyTradePerformance>(`/copy-trading/${walletID}/performance`);
 }
 
-export function getCopyTradePositions(fingerprint: string) {
-  return getJSON<CopyTradeDecision[]>("/copy-trading/positions", {
-    headers: { "X-User-Fingerprint": fingerprint },
-  });
+export function getCopyTradePositions() {
+  return getJSON<CopyTradeDecision[]>("/copy-trading/positions");
 }
 
-export function closeCopyTradePosition(decisionID: number, fingerprint: string) {
+export function closeCopyTradePosition(decisionID: number) {
   return getJSON<CopyTradeDecision>(`/copy-trading/decisions/${decisionID}/close`, {
     method: "POST",
-    headers: { "X-User-Fingerprint": fingerprint },
   });
 }
 
