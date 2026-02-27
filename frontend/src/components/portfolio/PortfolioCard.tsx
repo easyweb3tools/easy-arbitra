@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Check, Users } from "lucide-react";
 import { addBatchToWatchlist } from "@/lib/api";
-import { ensureFingerprint } from "@/lib/fingerprint";
 import type { PortfolioItem } from "@/lib/types";
 
 export function PortfolioCard({
@@ -16,13 +15,12 @@ export function PortfolioCard({
 }) {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const fingerprint = useMemo(() => ensureFingerprint(), []);
 
   async function onBatchFollow() {
     if (loading) return;
     setLoading(true);
     try {
-      await addBatchToWatchlist(item.wallet_ids, fingerprint);
+      await addBatchToWatchlist(item.wallet_ids);
       setDone(true);
     } finally {
       setLoading(false);

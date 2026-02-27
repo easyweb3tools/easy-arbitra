@@ -260,3 +260,17 @@ type CopyTradeDailyPerf struct {
 }
 
 func (CopyTradeDailyPerf) TableName() string { return "copy_trade_daily_perf" }
+
+type User struct {
+	ID           int64     `gorm:"primaryKey" json:"id"`
+	Email        string    `gorm:"size:255;uniqueIndex" json:"email"`
+	PasswordHash string    `gorm:"size:255" json:"-"`
+	Name         string    `gorm:"size:100" json:"name"`
+	AvatarURL    string    `gorm:"size:500" json:"avatar_url,omitempty"`
+	Provider     string    `gorm:"size:20;default:email" json:"provider"`
+	ProviderID   string    `gorm:"size:255" json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (User) TableName() string { return "user_account" }

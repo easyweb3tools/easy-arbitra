@@ -12,9 +12,19 @@ type Config struct {
 	Server     ServerConfig     `mapstructure:"server"`
 	Database   DatabaseConfig   `mapstructure:"database"`
 	Logger     LoggerConfig     `mapstructure:"logger"`
+	Auth       AuthConfig       `mapstructure:"auth"`
 	Nova       NovaConfig       `mapstructure:"nova"`
 	Polymarket PolymarketConfig `mapstructure:"polymarket"`
 	Worker     WorkerConfig     `mapstructure:"worker"`
+}
+
+type AuthConfig struct {
+	JWTSecret         string        `mapstructure:"jwt_secret"`
+	JWTExpiry         time.Duration `mapstructure:"jwt_expiry"`
+	GoogleClientID    string        `mapstructure:"google_client_id"`
+	GoogleSecret      string        `mapstructure:"google_client_secret"`
+	GoogleRedirectURL string        `mapstructure:"google_redirect_url"`
+	FrontendURL       string        `mapstructure:"frontend_url"`
 }
 
 type ServerConfig struct {
@@ -105,6 +115,12 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("database.auto_migrate", true)
 	v.SetDefault("logger.level", "info")
 	v.SetDefault("logger.format", "json")
+	v.SetDefault("auth.jwt_secret", "change-me-in-production")
+	v.SetDefault("auth.jwt_expiry", "168h")
+	v.SetDefault("auth.google_client_id", "")
+	v.SetDefault("auth.google_client_secret", "")
+	v.SetDefault("auth.google_redirect_url", "http://localhost:8080/api/v1/auth/google/callback")
+	v.SetDefault("auth.frontend_url", "http://localhost:3000")
 	v.SetDefault("nova.enabled", false)
 	v.SetDefault("nova.provider", "devapi")
 	v.SetDefault("nova.region", "us-east-1")
@@ -172,6 +188,13 @@ func Load(path string) (*Config, error) {
 
 	cfg.Logger.Level = v.GetString("logger.level")
 	cfg.Logger.Format = v.GetString("logger.format")
+
+	cfg.Auth.JWTSecret = v.GetString("auth.jwt_secret")
+	cfg.Auth.JWTExpiry = v.GetDuration("auth.jwt_expiry")
+	cfg.Auth.GoogleClientID = v.GetString("auth.google_client_id")
+	cfg.Auth.GoogleSecret = v.GetString("auth.google_client_secret")
+	cfg.Auth.GoogleRedirectURL = v.GetString("auth.google_redirect_url")
+	cfg.Auth.FrontendURL = v.GetString("auth.frontend_url")
 
 	cfg.Nova.Enabled = v.GetBool("nova.enabled")
 	cfg.Nova.Provider = v.GetString("nova.provider")

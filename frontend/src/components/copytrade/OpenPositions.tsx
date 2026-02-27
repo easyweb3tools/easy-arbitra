@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { closeCopyTradePosition } from "@/lib/api";
-import { ensureFingerprint } from "@/lib/fingerprint";
 import type { CopyTradeDecision } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
@@ -23,8 +22,7 @@ function OpenPositionRow({
   async function handleClose() {
     setLoading(true);
     try {
-      const fp = ensureFingerprint();
-      await closeCopyTradePosition(position.id, fp);
+      await closeCopyTradePosition(position.id);
       onClosed?.();
     } catch {
       // silent

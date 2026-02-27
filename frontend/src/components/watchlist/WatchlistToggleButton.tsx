@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Star, Loader2 } from "lucide-react";
 import { addToWatchlist, removeFromWatchlist } from "@/lib/api";
-import { ensureFingerprint } from "@/lib/fingerprint";
 
 type Labels = {
   follow: string;
@@ -36,7 +35,6 @@ export function WatchlistToggleButton({ walletID, labels }: { walletID: number; 
   const [watching, setWatching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const fingerprint = useMemo(() => ensureFingerprint(), []);
 
   useEffect(() => {
     const ids = readIDs();
@@ -48,12 +46,12 @@ export function WatchlistToggleButton({ walletID, labels }: { walletID: number; 
     setError("");
     try {
       if (watching) {
-        await removeFromWatchlist(walletID, fingerprint);
+        await removeFromWatchlist(walletID);
         const ids = readIDs().filter((id) => id !== walletID);
         writeIDs(ids);
         setWatching(false);
       } else {
-        await addToWatchlist(walletID, fingerprint);
+        await addToWatchlist(walletID);
         const ids = readIDs();
         ids.push(walletID);
         writeIDs(ids);

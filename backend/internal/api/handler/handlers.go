@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"net"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -411,7 +411,7 @@ func (h *Handlers) AddToWatchlist(c *gin.Context) {
 		response.BadRequest(c, "wallet_id is required")
 		return
 	}
-	if err := h.watchlistService.AddByWalletID(c.Request.Context(), req.WalletID, userFingerprint(c)); err != nil {
+	if err := h.watchlistService.AddByWalletID(c.Request.Context(), req.WalletID, userIdentifier(c)); err != nil {
 		if err == service.ErrNotFound {
 			response.NotFound(c, "wallet not found")
 			return
@@ -439,7 +439,7 @@ func (h *Handlers) AddToWatchlistBatch(c *gin.Context) {
 		if walletID <= 0 {
 			continue
 		}
-		if err := h.watchlistService.AddByWalletID(c.Request.Context(), walletID, userFingerprint(c)); err != nil && err != service.ErrNotFound {
+		if err := h.watchlistService.AddByWalletID(c.Request.Context(), walletID, userIdentifier(c)); err != nil && err != service.ErrNotFound {
 			response.Internal(c, err.Error())
 			return
 		}
@@ -454,7 +454,7 @@ func (h *Handlers) RemoveFromWatchlist(c *gin.Context) {
 		response.BadRequest(c, "invalid wallet id")
 		return
 	}
-	if err := h.watchlistService.RemoveByWalletID(c.Request.Context(), walletID, userFingerprint(c)); err != nil {
+	if err := h.watchlistService.RemoveByWalletID(c.Request.Context(), walletID, userIdentifier(c)); err != nil {
 		response.Internal(c, err.Error())
 		return
 	}
@@ -466,7 +466,7 @@ func (h *Handlers) ListWatchlist(c *gin.Context) {
 	rows, err := h.watchlistService.List(c.Request.Context(), service.WatchlistListQuery{
 		Page:            page,
 		PageSize:        pageSize,
-		UserFingerprint: userFingerprint(c),
+		UserFingerprint: userIdentifier(c),
 	})
 	if err != nil {
 		response.Internal(c, err.Error())
@@ -480,7 +480,7 @@ func (h *Handlers) GetWatchlistFeed(c *gin.Context) {
 	rows, err := h.watchlistService.Feed(c.Request.Context(), service.WatchlistFeedQuery{
 		Page:            page,
 		PageSize:        pageSize,
-		UserFingerprint: userFingerprint(c),
+		UserFingerprint: userIdentifier(c),
 		EventType:       strings.TrimSpace(c.Query("type")),
 	})
 	if err != nil {
@@ -491,7 +491,7 @@ func (h *Handlers) GetWatchlistFeed(c *gin.Context) {
 }
 
 func (h *Handlers) GetWatchlistSummary(c *gin.Context) {
-	rows, err := h.watchlistService.Summary(c.Request.Context(), userFingerprint(c))
+	rows, err := h.watchlistService.Summary(c.Request.Context(), userIdentifier(c))
 	if err != nil {
 		response.Internal(c, err.Error())
 		return
@@ -598,19 +598,9 @@ func parseInt16Ptr(input string) *int16 {
 	return &val
 }
 
-func userFingerprint(c *gin.Context) string {
-	if v := strings.TrimSpace(c.GetHeader("X-User-Fingerprint")); v != "" {
-		return v
+func userIdentifier(c *gin.Context) string {
+	if userID, exists := c.Get("user_id"); exists {
+		return fmt.Sprintf("uid:%d", userID.(int64))
 	}
-	if v := strings.TrimSpace(c.Query("fingerprint")); v != "" {
-		return v
-	}
-	if cookie, err := c.Cookie("user_fingerprint"); err == nil && strings.TrimSpace(cookie) != "" {
-		return strings.TrimSpace(cookie)
-	}
-	host, _, err := net.SplitHostPort(strings.TrimSpace(c.Request.RemoteAddr))
-	if err == nil && host != "" {
-		return host
-	}
-	return strings.TrimSpace(c.Request.RemoteAddr)
+	return ""
 }

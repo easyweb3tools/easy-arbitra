@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { enableCopyTrading, disableCopyTrading } from "@/lib/api";
-import { ensureFingerprint } from "@/lib/fingerprint";
 import type { Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 
@@ -26,8 +25,7 @@ export function CopyTradeToggle({
   async function handleEnable() {
     setLoading(true);
     try {
-      const fp = ensureFingerprint();
-      await enableCopyTrading(walletID, parseFloat(maxPosition) || 1000, riskPref, fp);
+      await enableCopyTrading(walletID, parseFloat(maxPosition) || 1000, riskPref);
       onToggle?.();
       setShowSettings(false);
     } catch {
@@ -40,8 +38,7 @@ export function CopyTradeToggle({
   async function handleDisable() {
     setLoading(true);
     try {
-      const fp = ensureFingerprint();
-      await disableCopyTrading(walletID, fp);
+      await disableCopyTrading(walletID);
       onToggle?.();
     } catch {
       // silent
