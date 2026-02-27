@@ -29,22 +29,31 @@ export function CopyTradingPageClient({
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<CopyTradeDashboard | null>(null);
   const [positions, setPositions] = useState<CopyTradeDecision[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   function fetchData() {
     let cancelled = false;
+    let dashErr = "";
     setLoading(true);
-    Promise.all([
-      getCopyTradeDashboard(),
-      getCopyTradePositions(),
-    ])
+    setError(null);
+
+    const dashP = getCopyTradeDashboard().catch((e) => {
+      dashErr = e instanceof Error ? e.message : String(e);
+      console.error("[copy-trading] dashboard error:", e);
+      return null;
+    });
+    const posP = getCopyTradePositions().catch((e) => {
+      console.error("[copy-trading] positions error:", e);
+      return [] as CopyTradeDecision[];
+    });
+
+    Promise.all([dashP, posP])
       .then(([d, p]) => {
         if (!cancelled) {
           setDashboard(d);
           setPositions(p);
+          if (!d) setError(dashErr || "Failed to load dashboard");
         }
-      })
-      .catch(() => {
-        // will show empty state
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -103,7 +112,7 @@ export function CopyTradingPageClient({
       ) : (
         <Card>
           <p className="py-12 text-center text-subheadline text-label-tertiary">
-            {labels.noConfigs}
+            {error || labels.noConfigs}
           </p>
         </Card>
       )}
