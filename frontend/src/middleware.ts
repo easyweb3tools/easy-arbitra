@@ -1,4 +1,7 @@
-// No auth-protected routes in the simplified product.
-// Middleware is kept as a placeholder for future rate-limiting or locale detection.
+// No-op middleware — all routes are public in the simplified product.
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export { };
+export function middleware(_request: NextRequest) {
+    return NextResponse.next();
+}
