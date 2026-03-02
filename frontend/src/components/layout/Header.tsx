@@ -1,6 +1,5 @@
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { DesktopNav } from "@/components/layout/DesktopNav";
-import { UserMenu } from "@/components/auth/UserMenu";
 import { t, type Locale } from "@/lib/i18n";
 
 export function Header({ locale }: { locale: Locale }) {
@@ -20,7 +19,6 @@ export function Header({ locale }: { locale: Locale }) {
           <p className="text-caption-1 text-label-tertiary">{t(locale, "app.subtitle")}</p>
         </div>
         <div className="flex items-center gap-3">
-          <UserMenu locale={locale} />
           <LanguageSwitcher
             locale={locale}
             enLabel={t(locale, "lang.en")}

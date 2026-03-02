@@ -4,7 +4,6 @@ import { Card, SectionHeader } from "@/components/ui/Card";
 import { StatCell } from "@/components/ui/StatCell";
 import { t } from "@/lib/i18n";
 import { getLocaleFromCookies } from "@/lib/i18n-server";
-import { appendUTM, pickUTM } from "@/lib/utm";
 import { StrategyTabs } from "@/components/wallet/StrategyTabs";
 import { WalletCard } from "@/components/wallet/WalletCard";
 
@@ -26,15 +25,9 @@ export default async function WalletsPage({
     has_ai_report?: string;
     sort_by?: string;
     order?: string;
-    utm_source?: string;
-    utm_medium?: string;
-    utm_campaign?: string;
-    utm_term?: string;
-    utm_content?: string;
   };
 }) {
   const locale = await getLocaleFromCookies();
-  const utm = pickUTM(searchParams);
 
   const params = new URLSearchParams({
     page: searchParams.page || "1",
@@ -55,7 +48,7 @@ export default async function WalletsPage({
     const q = new URLSearchParams(params);
     if (strategyType) q.set("strategy_type", strategyType);
     else q.delete("strategy_type");
-    return appendUTM(`/wallets?${q.toString()}`, utm);
+    return `/wallets?${q.toString()}`;
   };
 
   return (
@@ -90,25 +83,16 @@ export default async function WalletsPage({
               <option value="smart_score">Smart score</option>
               <option value="realized_pnl">Realized PnL</option>
               <option value="trade_count">Trade count</option>
-              <option value="last_analyzed_at">AI freshness</option>
             </select>
           </div>
           <div className="md:col-span-2">
-            <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">AI report</label>
-            <select name="has_ai_report" defaultValue={searchParams.has_ai_report || ""} className={inputClasses}>
-              <option value="">All</option>
-              <option value="true">With AI</option>
-              <option value="false">No AI</option>
-            </select>
-          </div>
-          <div className="md:col-span-1">
             <label className="mb-1.5 block text-caption-1 font-medium tracking-wide uppercase text-label-tertiary">Order</label>
             <select name="order" defaultValue={searchParams.order || "desc"} className={inputClasses}>
               <option value="desc">Desc</option>
               <option value="asc">Asc</option>
             </select>
           </div>
-          <div className="flex items-end md:col-span-1">
+          <div className="flex items-end md:col-span-2">
             <button
               className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-tint-blue px-5 text-subheadline font-semibold text-white shadow-[0_1px_3px_rgba(0,122,255,0.25)] transition-all duration-200 ease-apple hover:shadow-[0_4px_12px_rgba(0,122,255,0.3)] active:scale-[0.97]"
               type="submit"
@@ -116,12 +100,6 @@ export default async function WalletsPage({
               <Filter className="h-4 w-4" /> {t(locale, "wallets.apply")}
             </button>
           </div>
-
-          {utm.get("utm_source") && <input type="hidden" name="utm_source" value={utm.get("utm_source") || ""} />}
-          {utm.get("utm_medium") && <input type="hidden" name="utm_medium" value={utm.get("utm_medium") || ""} />}
-          {utm.get("utm_campaign") && <input type="hidden" name="utm_campaign" value={utm.get("utm_campaign") || ""} />}
-          {utm.get("utm_term") && <input type="hidden" name="utm_term" value={utm.get("utm_term") || ""} />}
-          {utm.get("utm_content") && <input type="hidden" name="utm_content" value={utm.get("utm_content") || ""} />}
         </form>
       </Card>
 
@@ -152,7 +130,6 @@ export default async function WalletsPage({
               key={item.wallet.id}
               item={item}
               locale={locale}
-              utm={utm}
               labels={{
                 unnamed: t(locale, "wallets.unnamed"),
                 follow: t(locale, "watchlist.follow"),
