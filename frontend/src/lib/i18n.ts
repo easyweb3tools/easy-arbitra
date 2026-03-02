@@ -16,6 +16,7 @@ const messages: Record<Locale, Record<string, string>> = {
     "nav.leaderboard": "Leaderboard",
     "nav.anomalies": "Anomalies",
     "nav.methodology": "Methodology",
+    "nav.dailyPick": "Daily Pick",
     "lang.en": "EN",
     "lang.zh": "中文",
 
@@ -265,6 +266,7 @@ const messages: Record<Locale, Record<string, string>> = {
     "nav.leaderboard": "排行榜",
     "nav.anomalies": "异常",
     "nav.methodology": "方法论",
+    "nav.dailyPick": "每日推荐",
     "lang.en": "EN",
     "lang.zh": "中文",
 

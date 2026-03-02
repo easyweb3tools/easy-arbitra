@@ -1,50 +1,37 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"easy-arbitra/backend/internal/copytrade"
+	"easy-arbitra/backend/internal/repository"
 	"easy-arbitra/backend/internal/service"
 	"easy-arbitra/backend/pkg/response"
+
 	"github.com/gin-gonic/gin"
 )
 
 type Handlers struct {
-	walletService    *service.WalletService
-	marketService    *service.MarketService
-	statsService     *service.StatsService
-	anomalyService   *service.AnomalyService
-	explainService   *service.ExplanationService
-	infoEdge         *service.InfoEdgeService
-	aiService        *service.AIService
-	watchlistService *service.WatchlistService
-	portfolioService *service.PortfolioService
-	copyTradeService *copytrade.Service
-	copyTradeRepo    *copytrade.Repository
-	readyCheck       func(*gin.Context) error
+	walletService *service.WalletService
+	marketService *service.MarketService
+	statsService  *service.StatsService
+	dailyPickRepo *repository.DailyPickRepository
+	walletRepo    *repository.WalletRepository
+	readyCheck    func(*gin.Context) error
 }
 
 func New(
 	walletService *service.WalletService,
 	marketService *service.MarketService,
 	statsService *service.StatsService,
-	anomalyService *service.AnomalyService,
-	explainService *service.ExplanationService,
-	infoEdge *service.InfoEdgeService,
-	aiService *service.AIService,
-	watchlistService *service.WatchlistService,
-	portfolioService *service.PortfolioService,
-	copyTradeService *copytrade.Service,
-	copyTradeRepo *copytrade.Repository,
+	dailyPickRepo *repository.DailyPickRepository,
+	walletRepo *repository.WalletRepository,
 	readyCheck func(*gin.Context) error,
 ) *Handlers {
 	return &Handlers{
-		walletService: walletService, marketService: marketService, statsService: statsService, anomalyService: anomalyService,
-		explainService: explainService, infoEdge: infoEdge, aiService: aiService, watchlistService: watchlistService,
-		portfolioService: portfolioService, copyTradeService: copyTradeService, copyTradeRepo: copyTradeRepo, readyCheck: readyCheck,
+		walletService: walletService, marketService: marketService, statsService: statsService,
+		dailyPickRepo: dailyPickRepo, walletRepo: walletRepo, readyCheck: readyCheck,
 	}
 }
 
@@ -153,56 +140,6 @@ func (h *Handlers) GetWalletProfile(c *gin.Context) {
 	response.OK(c, row)
 }
 
-func (h *Handlers) GetWalletShareCard(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	row, err := h.walletService.GetShareCard(c.Request.Context(), id)
-	if err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "wallet not found")
-			return
-		}
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, row)
-}
-
-func (h *Handlers) GetWalletExplanations(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	row, err := h.explainService.GetWalletExplanation(c.Request.Context(), id)
-	if err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "wallet not found")
-			return
-		}
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, row)
-}
-
-func (h *Handlers) GetWalletInfoEdge(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	report, err := h.infoEdge.Evaluate(c.Request.Context(), id)
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, report)
-}
-
 func (h *Handlers) ListMarkets(c *gin.Context) {
 	page, pageSize := parsePaging(c)
 	status := parseInt16Ptr(c.Query("status"))
@@ -249,19 +186,6 @@ func (h *Handlers) GetOverviewStats(c *gin.Context) {
 	response.OK(c, stats)
 }
 
-func (h *Handlers) GetOpsHighlights(c *gin.Context) {
-	limit := parsePositiveInt(c.DefaultQuery("limit", "5"), 5)
-	if limit > 20 {
-		limit = 20
-	}
-	rows, err := h.statsService.OpsHighlights(c.Request.Context(), limit)
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, rows)
-}
-
 func (h *Handlers) GetLeaderboard(c *gin.Context) {
 	page, pageSize := parsePaging(c)
 	rows, err := h.statsService.Leaderboard(c.Request.Context(), service.LeaderboardQuery{
@@ -277,244 +201,26 @@ func (h *Handlers) GetLeaderboard(c *gin.Context) {
 	response.OK(c, rows)
 }
 
-func (h *Handlers) ListAnomalies(c *gin.Context) {
-	page, pageSize := parsePaging(c)
-	severity, err := service.ParseOptionalInt16(strings.TrimSpace(c.Query("severity")))
+func (h *Handlers) GetDailyPick(c *gin.Context) {
+	pick, err := h.dailyPickRepo.GetLatest(c.Request.Context())
 	if err != nil {
-		response.BadRequest(c, "invalid severity")
+		response.NotFound(c, "no daily pick available")
 		return
 	}
-	ack, err := service.ParseOptionalBool(strings.TrimSpace(c.Query("acknowledged")))
-	if err != nil {
-		response.BadRequest(c, "invalid acknowledged")
-		return
-	}
-
-	rows, err := h.anomalyService.List(c.Request.Context(), service.AnomalyListQuery{
-		Page:         page,
-		PageSize:     pageSize,
-		Severity:     severity,
-		AlertType:    c.Query("type"),
-		Acknowledged: ack,
+	wallet, _ := h.walletRepo.GetByID(c.Request.Context(), pick.WalletID)
+	response.OK(c, gin.H{
+		"pick":   pick,
+		"wallet": wallet,
 	})
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, rows)
 }
 
-func (h *Handlers) AcknowledgeAnomaly(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+func (h *Handlers) ListDailyPickHistory(c *gin.Context) {
+	limit := parsePositiveInt(c.DefaultQuery("limit", "14"), 14)
+	if limit > 90 {
+		limit = 90
+	}
+	rows, err := h.dailyPickRepo.ListRecent(c.Request.Context(), limit)
 	if err != nil {
-		response.BadRequest(c, "invalid anomaly id")
-		return
-	}
-	if err := h.anomalyService.Acknowledge(c.Request.Context(), id); err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, gin.H{"acknowledged": true})
-}
-
-func (h *Handlers) GetAnomaly(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid anomaly id")
-		return
-	}
-	row, err := h.anomalyService.GetByID(c.Request.Context(), id)
-	if err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "anomaly not found")
-			return
-		}
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, row)
-}
-
-func (h *Handlers) TriggerAIAnalysis(c *gin.Context) {
-	walletID, err := strconv.ParseInt(c.Param("wallet_id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	force := false
-	if raw := strings.TrimSpace(c.Query("force")); raw != "" {
-		parsed, err := strconv.ParseBool(raw)
-		if err != nil {
-			response.BadRequest(c, "invalid force query")
-			return
-		}
-		force = parsed
-	}
-	report, err := h.aiService.AnalyzeByWalletID(c.Request.Context(), walletID, force)
-	if err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "wallet not found")
-			return
-		}
-		if err == service.ErrInsufficientTrades || err == service.ErrNonPositivePnL {
-			response.BadRequest(c, err.Error())
-			return
-		}
-		response.Internal(c, err.Error())
-		return
-	}
-	response.Created(c, report)
-}
-
-func (h *Handlers) GetAIReport(c *gin.Context) {
-	walletID, err := strconv.ParseInt(c.Param("wallet_id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	report, err := h.aiService.LatestByWalletID(c.Request.Context(), walletID)
-	if err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "report not found")
-			return
-		}
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, report)
-}
-
-func (h *Handlers) ListAIReports(c *gin.Context) {
-	walletID, err := strconv.ParseInt(c.Param("wallet_id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	limit := parsePositiveInt(c.DefaultQuery("limit", "10"), 10)
-	rows, err := h.aiService.ListByWalletID(c.Request.Context(), walletID, limit)
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, rows)
-}
-
-func (h *Handlers) AddToWatchlist(c *gin.Context) {
-	var req struct {
-		WalletID int64 `json:"wallet_id"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid body")
-		return
-	}
-	if req.WalletID <= 0 {
-		response.BadRequest(c, "wallet_id is required")
-		return
-	}
-	if err := h.watchlistService.AddByWalletID(c.Request.Context(), req.WalletID, userIdentifier(c)); err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "wallet not found")
-			return
-		}
-		response.Internal(c, err.Error())
-		return
-	}
-	response.Created(c, gin.H{"wallet_id": req.WalletID, "watching": true})
-}
-
-func (h *Handlers) AddToWatchlistBatch(c *gin.Context) {
-	var req struct {
-		WalletIDs []int64 `json:"wallet_ids"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid body")
-		return
-	}
-	if len(req.WalletIDs) == 0 {
-		response.BadRequest(c, "wallet_ids is required")
-		return
-	}
-	created := make([]int64, 0, len(req.WalletIDs))
-	for _, walletID := range req.WalletIDs {
-		if walletID <= 0 {
-			continue
-		}
-		if err := h.watchlistService.AddByWalletID(c.Request.Context(), walletID, userIdentifier(c)); err != nil && err != service.ErrNotFound {
-			response.Internal(c, err.Error())
-			return
-		}
-		created = append(created, walletID)
-	}
-	response.Created(c, gin.H{"wallet_ids": created, "watching": true})
-}
-
-func (h *Handlers) RemoveFromWatchlist(c *gin.Context) {
-	walletID, err := strconv.ParseInt(c.Param("wallet_id"), 10, 64)
-	if err != nil || walletID <= 0 {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	if err := h.watchlistService.RemoveByWalletID(c.Request.Context(), walletID, userIdentifier(c)); err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, gin.H{"wallet_id": walletID, "watching": false})
-}
-
-func (h *Handlers) ListWatchlist(c *gin.Context) {
-	page, pageSize := parsePaging(c)
-	rows, err := h.watchlistService.List(c.Request.Context(), service.WatchlistListQuery{
-		Page:            page,
-		PageSize:        pageSize,
-		UserFingerprint: userIdentifier(c),
-	})
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, rows)
-}
-
-func (h *Handlers) GetWatchlistFeed(c *gin.Context) {
-	page, pageSize := parsePaging(c)
-	rows, err := h.watchlistService.Feed(c.Request.Context(), service.WatchlistFeedQuery{
-		Page:            page,
-		PageSize:        pageSize,
-		UserFingerprint: userIdentifier(c),
-		EventType:       strings.TrimSpace(c.Query("type")),
-	})
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, rows)
-}
-
-func (h *Handlers) GetWatchlistSummary(c *gin.Context) {
-	rows, err := h.watchlistService.Summary(c.Request.Context(), userIdentifier(c))
-	if err != nil {
-		response.Internal(c, err.Error())
-		return
-	}
-	response.OK(c, rows)
-}
-
-func (h *Handlers) GetWalletPnLHistory(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "invalid wallet id")
-		return
-	}
-	limit := parsePositiveInt(c.DefaultQuery("limit", "90"), 90)
-	if limit > 365 {
-		limit = 365
-	}
-	rows, err := h.walletService.GetPnLHistory(c.Request.Context(), id, limit)
-	if err != nil {
-		if err == service.ErrNotFound {
-			response.NotFound(c, "wallet not found")
-			return
-		}
 		response.Internal(c, err.Error())
 		return
 	}
@@ -596,11 +302,4 @@ func parseInt16Ptr(input string) *int16 {
 	}
 	val := int16(v)
 	return &val
-}
-
-func userIdentifier(c *gin.Context) string {
-	if userID, exists := c.Get("user_id"); exists {
-		return fmt.Sprintf("uid:%d", userID.(int64))
-	}
-	return ""
 }

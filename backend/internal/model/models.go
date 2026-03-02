@@ -133,56 +133,6 @@ type AIAnalysisReport struct {
 
 func (AIAnalysisReport) TableName() string { return "ai_analysis_report" }
 
-type AnomalyAlert struct {
-	ID           int64          `gorm:"column:id;primaryKey" json:"id"`
-	WalletID     int64          `gorm:"column:wallet_id;index" json:"wallet_id"`
-	MarketID     *int64         `gorm:"column:market_id;index" json:"market_id,omitempty"`
-	AlertType    string         `gorm:"column:alert_type;size:30;index" json:"alert_type"`
-	Severity     int16          `gorm:"column:severity;index" json:"severity"`
-	Evidence     datatypes.JSON `gorm:"column:evidence;type:jsonb" json:"evidence"`
-	Description  string         `gorm:"column:description" json:"description"`
-	Acknowledged bool           `gorm:"column:acknowledged;default:false" json:"acknowledged"`
-	CreatedAt    time.Time      `gorm:"column:created_at" json:"created_at"`
-}
-
-func (AnomalyAlert) TableName() string { return "anomaly_alert" }
-
-type Watchlist struct {
-	ID              int64     `gorm:"column:id;primaryKey" json:"id"`
-	WalletID        int64     `gorm:"column:wallet_id;uniqueIndex:idx_watchlist_wallet_user" json:"wallet_id"`
-	UserFingerprint string    `gorm:"column:user_fingerprint;size:120;uniqueIndex:idx_watchlist_wallet_user" json:"user_fingerprint"`
-	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
-}
-
-func (Watchlist) TableName() string { return "watchlist" }
-
-type WalletUpdateEvent struct {
-	ID             int64          `gorm:"column:id;primaryKey" json:"id"`
-	WalletID       int64          `gorm:"column:wallet_id;index" json:"wallet_id"`
-	EventType      string         `gorm:"column:event_type;size:40;index" json:"event_type"`
-	Payload        datatypes.JSON `gorm:"column:payload;type:jsonb" json:"payload"`
-	ActionRequired bool           `gorm:"column:action_required;default:false" json:"action_required"`
-	Suggestion     *string        `gorm:"column:suggestion" json:"suggestion,omitempty"`
-	SuggestionZh   *string        `gorm:"column:suggestion_zh" json:"suggestion_zh,omitempty"`
-	CreatedAt      time.Time      `gorm:"column:created_at" json:"created_at"`
-}
-
-func (WalletUpdateEvent) TableName() string { return "wallet_update_event" }
-
-type Portfolio struct {
-	ID          int64          `gorm:"column:id;primaryKey" json:"id"`
-	Name        string         `gorm:"column:name;size:100" json:"name"`
-	NameZh      *string        `gorm:"column:name_zh;size:100" json:"name_zh,omitempty"`
-	Description *string        `gorm:"column:description" json:"description,omitempty"`
-	RiskLevel   string         `gorm:"column:risk_level;size:10" json:"risk_level"`
-	WalletIDs   datatypes.JSON `gorm:"column:wallet_ids;type:jsonb;not null" json:"wallet_ids"`
-	IsActive    bool           `gorm:"column:is_active;default:true" json:"is_active"`
-	CreatedAt   time.Time      `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt   time.Time      `gorm:"column:updated_at" json:"updated_at"`
-}
-
-func (Portfolio) TableName() string { return "portfolio" }
-
 type IngestCursor struct {
 	Source      string    `gorm:"column:source;primaryKey;size:100" json:"source"`
 	Stream      string    `gorm:"column:stream;primaryKey;size:120" json:"stream"`
@@ -204,73 +154,23 @@ type IngestRun struct {
 
 func (IngestRun) TableName() string { return "ingest_run" }
 
-type CopyTradingConfig struct {
-	ID              int64     `gorm:"column:id;primaryKey" json:"id"`
-	UserFingerprint string    `gorm:"column:user_fingerprint;size:120;uniqueIndex:idx_ctc_user_wallet" json:"user_fingerprint"`
-	WalletID        int64     `gorm:"column:wallet_id;uniqueIndex:idx_ctc_user_wallet" json:"wallet_id"`
-	Enabled         bool      `gorm:"column:enabled;default:true" json:"enabled"`
-	MaxPositionUSDC float64   `gorm:"column:max_position_usdc;type:numeric(12,2);default:1000" json:"max_position_usdc"`
-	RiskPreference  string    `gorm:"column:risk_preference;size:20;default:moderate" json:"risk_preference"`
-	LastCheckedAt   time.Time `gorm:"column:last_checked_at" json:"last_checked_at"`
-	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
+// DailyPick represents the daily recommended best trader.
+type DailyPick struct {
+	ID              int64          `gorm:"column:id;primaryKey" json:"id"`
+	PickDate        time.Time      `gorm:"column:pick_date;type:date;uniqueIndex" json:"pick_date"`
+	WalletID        int64          `gorm:"column:wallet_id;index" json:"wallet_id"`
+	SmartScore      int            `gorm:"column:smart_score" json:"smart_score"`
+	RealizedPnL     float64        `gorm:"column:realized_pnl;type:numeric(16,6)" json:"realized_pnl"`
+	TotalTrades     int64          `gorm:"column:total_trades" json:"total_trades"`
+	WinRate         float64        `gorm:"column:win_rate;type:numeric(5,4)" json:"win_rate"`
+	ReasonJSON      datatypes.JSON `gorm:"column:reason_json;type:jsonb" json:"reason_json"`
+	ReasonSummary   string         `gorm:"column:reason_summary" json:"reason_summary"`
+	ReasonSummaryZh string         `gorm:"column:reason_summary_zh" json:"reason_summary_zh"`
+	ModelID         string         `gorm:"column:model_id;size:50" json:"model_id"`
+	TradesFollowed  int            `gorm:"column:trades_followed" json:"trades_followed"`
+	FollowPnL       *float64       `gorm:"column:follow_pnl;type:numeric(16,6)" json:"follow_pnl,omitempty"`
+	ResultUpdatedAt *time.Time     `gorm:"column:result_updated_at" json:"result_updated_at,omitempty"`
+	CreatedAt       time.Time      `gorm:"column:created_at" json:"created_at"`
 }
 
-func (CopyTradingConfig) TableName() string { return "copy_trading_config" }
-
-type CopyTradeDecision struct {
-	ID            int64          `gorm:"column:id;primaryKey" json:"id"`
-	ConfigID      int64          `gorm:"column:config_id;index" json:"config_id"`
-	LeaderTradeID *int64         `gorm:"column:leader_trade_id" json:"leader_trade_id,omitempty"`
-	MarketID      *int64         `gorm:"column:market_id" json:"market_id,omitempty"`
-	MarketTitle   string         `gorm:"column:market_title" json:"market_title"`
-	Decision      string         `gorm:"column:decision;size:10" json:"decision"`
-	Confidence    float64        `gorm:"column:confidence;type:numeric(4,3)" json:"confidence"`
-	Outcome       string         `gorm:"column:outcome;size:5" json:"outcome"`
-	Action        string         `gorm:"column:action;size:5" json:"action"`
-	Price         float64        `gorm:"column:price;type:numeric(12,6)" json:"price"`
-	SizeUSDC      float64        `gorm:"column:size_usdc;type:numeric(12,2)" json:"size_usdc"`
-	StopLossPrice *float64       `gorm:"column:stop_loss_price;type:numeric(12,6)" json:"stop_loss_price,omitempty"`
-	Reasoning     string         `gorm:"column:reasoning" json:"reasoning"`
-	ReasoningEn   string         `gorm:"column:reasoning_en" json:"reasoning_en"`
-	RiskNotes     datatypes.JSON `gorm:"column:risk_notes;type:jsonb;default:'[]'" json:"risk_notes"`
-	ModelID       string         `gorm:"column:model_id;size:50" json:"model_id"`
-	InputTokens   int            `gorm:"column:input_tokens" json:"input_tokens"`
-	OutputTokens  int            `gorm:"column:output_tokens" json:"output_tokens"`
-	LatencyMS     int            `gorm:"column:latency_ms" json:"latency_ms"`
-	Status        string         `gorm:"column:status;size:20;default:pending;index" json:"status"`
-	ExecutedAt    *time.Time     `gorm:"column:executed_at" json:"executed_at,omitempty"`
-	ClosedAt      *time.Time     `gorm:"column:closed_at" json:"closed_at,omitempty"`
-	ClosePrice    *float64       `gorm:"column:close_price;type:numeric(12,6)" json:"close_price,omitempty"`
-	RealizedPnL   *float64       `gorm:"column:realized_pnl;type:numeric(12,4)" json:"realized_pnl,omitempty"`
-	CreatedAt     time.Time      `gorm:"column:created_at" json:"created_at"`
-}
-
-func (CopyTradeDecision) TableName() string { return "copy_trade_decision" }
-
-type CopyTradeDailyPerf struct {
-	ConfigID      int64     `gorm:"column:config_id;primaryKey" json:"config_id"`
-	PerfDate      time.Time `gorm:"column:perf_date;primaryKey;type:date" json:"perf_date"`
-	TotalCopies   int       `gorm:"column:total_copies" json:"total_copies"`
-	Profitable    int       `gorm:"column:profitable" json:"profitable"`
-	TotalPnL      float64   `gorm:"column:total_pnl;type:numeric(12,4)" json:"total_pnl"`
-	TotalExposure float64   `gorm:"column:total_exposure;type:numeric(12,2)" json:"total_exposure"`
-	Skipped       int       `gorm:"column:skipped" json:"skipped"`
-	CreatedAt     time.Time `gorm:"column:created_at" json:"created_at"`
-}
-
-func (CopyTradeDailyPerf) TableName() string { return "copy_trade_daily_perf" }
-
-type User struct {
-	ID           int64     `gorm:"column:id;primaryKey" json:"id"`
-	Email        string    `gorm:"column:email;size:255;uniqueIndex" json:"email"`
-	PasswordHash string    `gorm:"column:password_hash;size:255" json:"-"`
-	Name         string    `gorm:"column:name;size:100" json:"name"`
-	AvatarURL    string    `gorm:"column:avatar_url;size:500" json:"avatar_url,omitempty"`
-	Provider     string    `gorm:"column:provider;size:20;default:email" json:"provider"`
-	ProviderID   string    `gorm:"column:provider_id;size:255" json:"-"`
-	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
-}
-
-func (User) TableName() string { return "user_account" }
+func (DailyPick) TableName() string { return "daily_pick" }
