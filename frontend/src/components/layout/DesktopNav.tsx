@@ -8,6 +8,8 @@ const links = [
   { href: "/", labelKey: "nav.discover" as const },
   { href: "/leaderboard", labelKey: "leaderboard.title" as const },
   { href: "/daily-picks", labelKey: "nav.dailyPick" as const },
+  { href: "/nova-brain", labelKey: "nav.novaBrain" as const },
+  { href: "/nova-memory", labelKey: "nav.novaMemory" as const },
   { href: "/markets", labelKey: "nav.more" as const },
 ] as const;
 
