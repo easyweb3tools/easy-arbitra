@@ -56,9 +56,10 @@ func (s *NovaInsightService) GetCurrentStatus(ctx context.Context) (*NovaStatus,
 	}
 
 	status := &NovaStatus{
-		IsActive:    false,
-		SessionDate: today,
-		TotalRounds: 14, // 08:00-22:00 = 14 hours
+		IsActive:     false,
+		SessionDate:  today,
+		TotalRounds:  14, // 08:00-22:00 = 14 hours
+		FocusMetrics: []string{}, // Initialize empty slice
 	}
 
 	if len(sessions) == 0 {
@@ -79,6 +80,10 @@ func (s *NovaInsightService) GetCurrentStatus(ctx context.Context) (*NovaStatus,
 		if err := json.Unmarshal(latest.FocusMetrics, &metrics); err == nil {
 			status.FocusMetrics = metrics
 		}
+	}
+	// Ensure FocusMetrics is never nil
+	if status.FocusMetrics == nil {
+		status.FocusMetrics = []string{}
 	}
 
 	// Count candidates
