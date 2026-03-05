@@ -109,7 +109,7 @@ export function BrainDashboard({ status: initialStatus }: BrainDashboardProps) {
             </span>
           </div>
           <p className="text-xs font-medium text-gray-900 dark:text-white">
-            {status.focus_metrics.length > 0
+            {status.focus_metrics && status.focus_metrics.length > 0
               ? status.focus_metrics.slice(0, 2).join(", ")
               : "Analyzing..."}
           </p>
