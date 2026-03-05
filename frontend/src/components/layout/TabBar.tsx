@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Trophy, Sparkles, MoreHorizontal } from "lucide-react";
+import { Home, Trophy, Sparkles, Brain, MoreHorizontal } from "lucide-react";
 import { t, type Locale } from "@/lib/i18n";
 
 const tabs = [
   { href: "/", icon: Home, labelKey: "nav.discover" as const },
   { href: "/leaderboard", icon: Trophy, labelKey: "leaderboard.title" as const },
   { href: "/daily-picks", icon: Sparkles, labelKey: "nav.dailyPick" as const },
+  { href: "/nova-brain", icon: Brain, labelKey: "nav.novaBrain" as const },
   { href: "/markets", icon: MoreHorizontal, labelKey: "nav.more" as const },
 ] as const;
 
