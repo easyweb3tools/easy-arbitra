@@ -129,6 +129,7 @@ func main() {
 				cfg.Worker.TradeSyncerCursorLookback,
 			), Interval: cfg.Worker.TradeSyncerInterval},
 			{Syncer: worker.NewTradeBackfillSyncer(dataClient, walletRepo, marketRepo, tokenRepo, tradeRepo, cfg.Worker.BackfillWalletsPerSync, cfg.Worker.BackfillPagesPerWallet, cfg.Worker.BackfillPageSize, cfg.Worker.BackfillConcurrency, cfg.Worker.BackfillTargetMinTrades), Interval: cfg.Worker.TradeBackfillSyncerInterval},
+			{Syncer: worker.NewTraderStatsRefresher(lg, db), Interval: 5 * time.Minute}, // Refresh trader_stats every 5 minutes
 			{Syncer: worker.NewFeatureBuilder(featureRepo), Interval: cfg.Worker.FeatureBuilderInterval},
 			{Syncer: worker.NewScoreCalculator(walletRepo, classifier), Interval: cfg.Worker.ScoreCalculatorInterval},
 			{Syncer: worker.NewNovaOrchestrator(sessionRepo, dailyPickRepo, scoreRepo, tradeRepo, walletRepo, analyzer, cfg.Worker.NovaOrchestratorStartHour, cfg.Worker.NovaOrchestratorEndHour), Interval: cfg.Worker.NovaOrchestratorInterval},

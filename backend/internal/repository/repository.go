@@ -336,42 +336,7 @@ func (r *WalletRepository) CountPotentialWallets(ctx context.Context, f Potentia
 	}
 	var total int64
 	err := r.db.WithContext(ctx).Raw(`
-WITH taker AS (
-    SELECT
-        taker_wallet_id AS wallet_id,
-        COUNT(*) AS trade_count,
-        COALESCE(SUM(CASE
-            WHEN side = 0 THEN (price * size) - fee_paid
-            WHEN side = 1 THEN -((price * size) + fee_paid)
-            ELSE 0
-        END), 0) AS trading_pnl
-    FROM trade_fill
-    WHERE taker_wallet_id IS NOT NULL
-    GROUP BY taker_wallet_id
-),
-maker AS (
-    SELECT
-        maker_wallet_id AS wallet_id,
-        COUNT(*) AS trade_count,
-        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
-    FROM trade_fill
-    WHERE maker_wallet_id IS NOT NULL
-    GROUP BY maker_wallet_id
-),
-merged AS (
-    SELECT
-        x.wallet_id,
-        SUM(x.trade_count) AS trade_count,
-        SUM(x.trading_pnl) AS trading_pnl,
-        SUM(x.maker_rebates) AS maker_rebates
-    FROM (
-        SELECT wallet_id, trade_count, trading_pnl, 0::numeric AS maker_rebates FROM taker
-        UNION ALL
-        SELECT wallet_id, trade_count, 0::numeric AS trading_pnl, maker_rebates FROM maker
-    ) x
-    GROUP BY x.wallet_id
-),
-latest_score AS (
+WITH latest_score AS (
     SELECT DISTINCT ON (wallet_id)
         wallet_id, strategy_type, pool_tier
     FROM wallet_score
@@ -383,12 +348,12 @@ latest_ai AS (
     GROUP BY wallet_id
 )
 SELECT COUNT(*)
-FROM merged m
-JOIN wallet w ON w.id = m.wallet_id
+FROM trader_stats ts
+JOIN wallet w ON w.id = ts.wallet_id
 LEFT JOIN latest_score s ON s.wallet_id = w.id
 LEFT JOIN latest_ai a ON a.wallet_id = w.id
-WHERE m.trade_count >= ?
-  AND (m.trading_pnl + m.maker_rebates) > ?
+WHERE ts.trade_count >= ?
+  AND ts.realized_pnl > ?
   AND (? = '' OR COALESCE(s.strategy_type, 'unknown') = ?)
   AND (? = '' OR COALESCE(s.pool_tier, 'observation') = ?)
   AND (
@@ -434,42 +399,7 @@ func (r *WalletRepository) ListPotentialWallets(ctx context.Context, f Potential
 		"wallet_id":        {},
 	})
 	query := fmt.Sprintf(`
-WITH taker AS (
-    SELECT
-        taker_wallet_id AS wallet_id,
-        COUNT(*) AS trade_count,
-        COALESCE(SUM(CASE
-            WHEN side = 0 THEN (price * size) - fee_paid
-            WHEN side = 1 THEN -((price * size) + fee_paid)
-            ELSE 0
-        END), 0) AS trading_pnl
-    FROM trade_fill
-    WHERE taker_wallet_id IS NOT NULL
-    GROUP BY taker_wallet_id
-),
-maker AS (
-    SELECT
-        maker_wallet_id AS wallet_id,
-        COUNT(*) AS trade_count,
-        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
-    FROM trade_fill
-    WHERE maker_wallet_id IS NOT NULL
-    GROUP BY maker_wallet_id
-),
-merged AS (
-    SELECT
-        x.wallet_id,
-        SUM(x.trade_count) AS trade_count,
-        SUM(x.trading_pnl) AS trading_pnl,
-        SUM(x.maker_rebates) AS maker_rebates
-    FROM (
-        SELECT wallet_id, trade_count, trading_pnl, 0::numeric AS maker_rebates FROM taker
-        UNION ALL
-        SELECT wallet_id, trade_count, 0::numeric AS trading_pnl, maker_rebates FROM maker
-    ) x
-    GROUP BY x.wallet_id
-),
-latest_score AS (
+WITH latest_score AS (
     SELECT DISTINCT ON (wallet_id)
         wallet_id, smart_score, info_edge_level, strategy_type, pool_tier
     FROM wallet_score
@@ -485,22 +415,22 @@ SELECT
     w.address AS address,
     w.pseudonym AS pseudonym,
     w.is_tracked AS is_tracked,
-    m.trade_count AS trade_count,
-    m.trading_pnl AS trading_pnl,
-    m.maker_rebates AS maker_rebates,
-    (m.trading_pnl + m.maker_rebates) AS realized_pnl,
+    ts.trade_count AS trade_count,
+    ts.trading_pnl AS trading_pnl,
+    ts.maker_rebates AS maker_rebates,
+    ts.realized_pnl AS realized_pnl,
     COALESCE(s.smart_score, 0) AS smart_score,
     COALESCE(s.info_edge_level, 'unknown') AS info_edge_level,
     COALESCE(s.strategy_type, 'unknown') AS strategy_type,
     COALESCE(s.pool_tier, 'observation') AS pool_tier,
     COALESCE(a.nl_summary, '') AS nl_summary,
     a.last_analyzed_at
-FROM merged m
-JOIN wallet w ON w.id = m.wallet_id
+FROM trader_stats ts
+JOIN wallet w ON w.id = ts.wallet_id
 LEFT JOIN latest_score s ON s.wallet_id = w.id
 LEFT JOIN latest_ai a ON a.wallet_id = w.id
-WHERE m.trade_count >= ?
-  AND (m.trading_pnl + m.maker_rebates) > ?
+WHERE ts.trade_count >= ?
+  AND ts.realized_pnl > ?
   AND (? = '' OR COALESCE(s.strategy_type, 'unknown') = ?)
   AND (? = '' OR COALESCE(s.pool_tier, 'observation') = ?)
   AND (
@@ -1214,4 +1144,122 @@ func (r *NovaSessionRepository) GetLatestFinal(ctx context.Context) (*model.Nova
 		return nil, err
 	}
 	return &s, nil
+}
+
+// ── TraderStats Repository ──
+
+type TraderStatsRepository struct{ db *gorm.DB }
+
+func NewTraderStatsRepository(db *gorm.DB) *TraderStatsRepository {
+	return &TraderStatsRepository{db: db}
+}
+
+// RefreshIncremental updates trader_stats with trades since lastSyncTime
+func (r *TraderStatsRepository) RefreshIncremental(ctx context.Context, lastSyncTime time.Time) error {
+	query := `
+INSERT INTO trader_stats (wallet_id, trade_count, trading_pnl, maker_rebates, updated_at)
+SELECT
+    wallet_id,
+    SUM(trade_count)    AS trade_count,
+    SUM(trading_pnl)    AS trading_pnl,
+    SUM(maker_rebates)  AS maker_rebates,
+    NOW()               AS updated_at
+FROM (
+    SELECT
+        taker_wallet_id AS wallet_id,
+        COUNT(*)        AS trade_count,
+        COALESCE(SUM(CASE
+            WHEN side = 0 THEN (price * size) - fee_paid
+            WHEN side = 1 THEN -((price * size) + fee_paid)
+            ELSE 0
+        END), 0) AS trading_pnl,
+        0::NUMERIC      AS maker_rebates
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+      AND block_time > ?
+    GROUP BY taker_wallet_id
+
+    UNION ALL
+
+    SELECT
+        maker_wallet_id AS wallet_id,
+        COUNT(*)        AS trade_count,
+        0::NUMERIC      AS trading_pnl,
+        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+      AND block_time > ?
+    GROUP BY maker_wallet_id
+) x
+GROUP BY wallet_id
+ON CONFLICT (wallet_id) DO UPDATE SET
+    trade_count   = trader_stats.trade_count   + EXCLUDED.trade_count,
+    trading_pnl   = trader_stats.trading_pnl   + EXCLUDED.trading_pnl,
+    maker_rebates = trader_stats.maker_rebates + EXCLUDED.maker_rebates,
+    updated_at    = NOW()`
+
+	return r.db.WithContext(ctx).Exec(query, lastSyncTime, lastSyncTime).Error
+}
+
+// RefreshFull rebuilds the entire trader_stats table from scratch
+func (r *TraderStatsRepository) RefreshFull(ctx context.Context) error {
+	// First, truncate the table
+	if err := r.db.WithContext(ctx).Exec("TRUNCATE TABLE trader_stats").Error; err != nil {
+		return err
+	}
+
+	// Then, rebuild from trade_fill
+	query := `
+INSERT INTO trader_stats (wallet_id, trade_count, trading_pnl, maker_rebates, updated_at)
+SELECT
+    wallet_id,
+    SUM(trade_count)    AS trade_count,
+    SUM(trading_pnl)    AS trading_pnl,
+    SUM(maker_rebates)  AS maker_rebates,
+    NOW()               AS updated_at
+FROM (
+    SELECT
+        taker_wallet_id AS wallet_id,
+        COUNT(*)        AS trade_count,
+        COALESCE(SUM(CASE
+            WHEN side = 0 THEN (price * size) - fee_paid
+            WHEN side = 1 THEN -((price * size) + fee_paid)
+            ELSE 0
+        END), 0) AS trading_pnl,
+        0::NUMERIC      AS maker_rebates
+    FROM trade_fill
+    WHERE taker_wallet_id IS NOT NULL
+    GROUP BY taker_wallet_id
+
+    UNION ALL
+
+    SELECT
+        maker_wallet_id AS wallet_id,
+        COUNT(*)        AS trade_count,
+        0::NUMERIC      AS trading_pnl,
+        COALESCE(SUM(CASE WHEN fee_paid < 0 THEN ABS(fee_paid) ELSE 0 END), 0) AS maker_rebates
+    FROM trade_fill
+    WHERE maker_wallet_id IS NOT NULL
+    GROUP BY maker_wallet_id
+) x
+GROUP BY wallet_id`
+
+	return r.db.WithContext(ctx).Exec(query).Error
+}
+
+// GetByWalletID returns stats for a specific wallet
+func (r *TraderStatsRepository) GetByWalletID(ctx context.Context, walletID int64) (*model.TraderStats, error) {
+	var stats model.TraderStats
+	err := r.db.WithContext(ctx).First(&stats, walletID).Error
+	if err != nil {
+		return nil, err
+	}
+	return &stats, nil
+}
+
+// Count returns total number of wallets in trader_stats
+func (r *TraderStatsRepository) Count(ctx context.Context) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.TraderStats{}).Count(&total).Error
+	return total, err
 }

@@ -58,7 +58,7 @@ func (s *NovaInsightService) GetCurrentStatus(ctx context.Context) (*NovaStatus,
 	status := &NovaStatus{
 		IsActive:     false,
 		SessionDate:  today,
-		TotalRounds:  14, // 08:00-22:00 = 14 hours
+		TotalRounds:  14,         // 08:00-22:00 = 14 hours
 		FocusMetrics: []string{}, // Initialize empty slice
 	}
 
