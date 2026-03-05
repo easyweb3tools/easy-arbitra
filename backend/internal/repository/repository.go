@@ -27,6 +27,8 @@ type AIReportRepository struct{ db *gorm.DB }
 
 type DailyPickRepository struct{ db *gorm.DB }
 
+type NovaSessionRepository struct{ db *gorm.DB }
+
 type WalletListFilter struct {
 	Tracked *bool
 	Search  string
@@ -170,6 +172,9 @@ func NewTradeRepository(db *gorm.DB) *TradeRepository         { return &TradeRep
 func NewScoreRepository(db *gorm.DB) *ScoreRepository         { return &ScoreRepository{db: db} }
 func NewAIReportRepository(db *gorm.DB) *AIReportRepository   { return &AIReportRepository{db: db} }
 func NewDailyPickRepository(db *gorm.DB) *DailyPickRepository { return &DailyPickRepository{db: db} }
+func NewNovaSessionRepository(db *gorm.DB) *NovaSessionRepository {
+	return &NovaSessionRepository{db: db}
+}
 
 func (r *WalletRepository) List(ctx context.Context, f WalletListFilter) ([]model.Wallet, int64, error) {
 	q := r.db.WithContext(ctx).Model(&model.Wallet{})
@@ -1165,4 +1170,39 @@ func buildOrderClause(sortBy string, order string, allow map[string]struct{}) st
 		order = "desc"
 	}
 	return fmt.Sprintf("%s %s", sortBy, order)
+}
+
+// ── NovaSession Repository ──
+
+func (r *NovaSessionRepository) Create(ctx context.Context, s *model.NovaSession) error {
+	return r.db.WithContext(ctx).Create(s).Error
+}
+
+func (r *NovaSessionRepository) ListByDate(ctx context.Context, date time.Time) ([]model.NovaSession, error) {
+	var rows []model.NovaSession
+	err := r.db.WithContext(ctx).
+		Where("session_date = ?", date.Truncate(24*time.Hour)).
+		Order("round ASC").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *NovaSessionRepository) HasFinalByDate(ctx context.Context, date time.Time) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.NovaSession{}).
+		Where("session_date = ? AND phase = ?", date.Truncate(24*time.Hour), "final").
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *NovaSessionRepository) GetLatestFinal(ctx context.Context) (*model.NovaSession, error) {
+	var s model.NovaSession
+	err := r.db.WithContext(ctx).
+		Where("phase = ?", "final").
+		Order("session_date DESC, round DESC").
+		First(&s).Error
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }

@@ -98,7 +98,9 @@ type WorkerConfig struct {
 	MaxMarketsPerSync            int           `mapstructure:"max_markets_per_sync"`
 	MaxOffchainEventsPerSync     int           `mapstructure:"max_offchain_events_per_sync"`
 	CopyTradeSyncerInterval      time.Duration `mapstructure:"copy_trade_syncer_interval"`
-	DailyRecommenderInterval     time.Duration `mapstructure:"daily_recommender_interval"`
+	NovaOrchestratorInterval     time.Duration `mapstructure:"nova_orchestrator_interval"`
+	NovaOrchestratorStartHour    int           `mapstructure:"nova_orchestrator_start_hour"`
+	NovaOrchestratorEndHour      int           `mapstructure:"nova_orchestrator_end_hour"`
 }
 
 func Load(path string) (*Config, error) {
@@ -164,7 +166,9 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("worker.max_markets_per_sync", 100)
 	v.SetDefault("worker.max_offchain_events_per_sync", 50)
 	v.SetDefault("worker.copy_trade_syncer_interval", "5m")
-	v.SetDefault("worker.daily_recommender_interval", "6h")
+	v.SetDefault("worker.nova_orchestrator_interval", "1h")
+	v.SetDefault("worker.nova_orchestrator_start_hour", 8)
+	v.SetDefault("worker.nova_orchestrator_end_hour", 22)
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -242,7 +246,9 @@ func Load(path string) (*Config, error) {
 	cfg.Worker.MaxMarketsPerSync = v.GetInt("worker.max_markets_per_sync")
 	cfg.Worker.MaxOffchainEventsPerSync = v.GetInt("worker.max_offchain_events_per_sync")
 	cfg.Worker.CopyTradeSyncerInterval = v.GetDuration("worker.copy_trade_syncer_interval")
-	cfg.Worker.DailyRecommenderInterval = v.GetDuration("worker.daily_recommender_interval")
+	cfg.Worker.NovaOrchestratorInterval = v.GetDuration("worker.nova_orchestrator_interval")
+	cfg.Worker.NovaOrchestratorStartHour = v.GetInt("worker.nova_orchestrator_start_hour")
+	cfg.Worker.NovaOrchestratorEndHour = v.GetInt("worker.nova_orchestrator_end_hour")
 
 	return &cfg, nil
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"easy-arbitra/backend/config"
+
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
@@ -43,6 +44,7 @@ type WalletAnalysisOutput struct {
 
 type Analyzer interface {
 	AnalyzeWallet(ctx context.Context, in WalletAnalysisInput) (*WalletAnalysisOutput, error)
+	Orchestrate(ctx context.Context, in OrchestrateInput) (*OrchestrateOutput, error)
 }
 
 type BedrockAnalyzer struct {

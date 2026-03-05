@@ -2,6 +2,7 @@ import {
   DailyPick,
   LeaderboardItem,
   Market,
+  NovaSession,
   OverviewStats,
   Paged,
   PnLHistoryPoint,
@@ -84,4 +85,11 @@ export function getDailyPick() {
 
 export function getDailyPickHistory(limit = 14) {
   return getJSON<DailyPick[]>(`/daily-pick/history?limit=${limit}`);
+}
+
+// ── Nova Sessions ──
+
+export function getNovaSessions(date?: string) {
+  const q = date ? `?date=${date}` : "";
+  return getJSON<NovaSession[]>(`/nova/sessions${q}`);
 }

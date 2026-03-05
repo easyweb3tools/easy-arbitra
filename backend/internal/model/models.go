@@ -174,3 +174,25 @@ type DailyPick struct {
 }
 
 func (DailyPick) TableName() string { return "daily_pick" }
+
+// NovaSession represents a single round of Nova's analysis.
+// Multiple sessions per day form Nova's "working memory".
+type NovaSession struct {
+	ID               int64          `gorm:"column:id;primaryKey" json:"id"`
+	SessionDate      time.Time      `gorm:"column:session_date;type:date;index" json:"session_date"`
+	Round            int            `gorm:"column:round" json:"round"`
+	Phase            string         `gorm:"column:phase;size:20" json:"phase"` // "analyzing" | "final" | "verified"
+	CandidatesJSON   datatypes.JSON `gorm:"column:candidates_json;type:jsonb" json:"candidates_json"`
+	ObservationsJSON datatypes.JSON `gorm:"column:observations_json;type:jsonb" json:"observations_json"`
+	DecisionJSON     datatypes.JSON `gorm:"column:decision_json;type:jsonb" json:"decision_json"`
+	NLSummary        string         `gorm:"column:nl_summary" json:"nl_summary"`
+	NLSummaryZh      string         `gorm:"column:nl_summary_zh" json:"nl_summary_zh"`
+	PickedWalletID   *int64         `gorm:"column:picked_wallet_id" json:"picked_wallet_id,omitempty"`
+	ModelID          string         `gorm:"column:model_id;size:50" json:"model_id"`
+	InputTokens      int            `gorm:"column:input_tokens" json:"input_tokens"`
+	OutputTokens     int            `gorm:"column:output_tokens" json:"output_tokens"`
+	LatencyMS        int            `gorm:"column:latency_ms" json:"latency_ms"`
+	CreatedAt        time.Time      `gorm:"column:created_at" json:"created_at"`
+}
+
+func (NovaSession) TableName() string { return "nova_session" }

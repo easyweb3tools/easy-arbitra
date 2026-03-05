@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"easy-arbitra/backend/internal/repository"
 	"easy-arbitra/backend/internal/service"
@@ -18,6 +19,7 @@ type Handlers struct {
 	statsService  *service.StatsService
 	dailyPickRepo *repository.DailyPickRepository
 	walletRepo    *repository.WalletRepository
+	sessionRepo   *repository.NovaSessionRepository
 	readyCheck    func(*gin.Context) error
 }
 
@@ -27,11 +29,12 @@ func New(
 	statsService *service.StatsService,
 	dailyPickRepo *repository.DailyPickRepository,
 	walletRepo *repository.WalletRepository,
+	sessionRepo *repository.NovaSessionRepository,
 	readyCheck func(*gin.Context) error,
 ) *Handlers {
 	return &Handlers{
 		walletService: walletService, marketService: marketService, statsService: statsService,
-		dailyPickRepo: dailyPickRepo, walletRepo: walletRepo, readyCheck: readyCheck,
+		dailyPickRepo: dailyPickRepo, walletRepo: walletRepo, sessionRepo: sessionRepo, readyCheck: readyCheck,
 	}
 }
 
@@ -262,6 +265,27 @@ func (h *Handlers) ListWalletPositions(c *gin.Context) {
 		return
 	}
 	response.OK(c, rows)
+}
+
+func (h *Handlers) ListNovaSessions(c *gin.Context) {
+	dateStr := c.DefaultQuery("date", "")
+	var date time.Time
+	if dateStr == "" {
+		date = time.Now().UTC().Truncate(24 * time.Hour)
+	} else {
+		var err error
+		date, err = time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			response.BadRequest(c, "invalid date format, use YYYY-MM-DD")
+			return
+		}
+	}
+	sessions, err := h.sessionRepo.ListByDate(c.Request.Context(), date)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, sessions)
 }
 
 func parsePaging(c *gin.Context) (int, int) {

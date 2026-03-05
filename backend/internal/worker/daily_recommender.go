@@ -14,159 +14,269 @@ import (
 	"gorm.io/datatypes"
 )
 
-// DailyRecommender runs once per day (via interval config).
-// 1. Backfills yesterday's pick with follow-up PnL
-// 2. Picks today's best trader using score leaderboard
-// 3. Calls Nova to generate recommendation reasoning
-// 4. Writes the DailyPick record
-type DailyRecommender struct {
+// NovaOrchestrator is the hourly worker that wakes Nova to analyze candidates.
+// Nova drives the entire flow: it evaluates candidates, maintains memory across
+// rounds, self-determines when to make the final pick, and writes the result.
+type NovaOrchestrator struct {
+	sessionRepo   *repository.NovaSessionRepository
 	dailyPickRepo *repository.DailyPickRepository
 	scoreRepo     *repository.ScoreRepository
 	tradeRepo     *repository.TradeRepository
 	walletRepo    *repository.WalletRepository
 	analyzer      ai.Analyzer
+	startHour     int // UTC hour to start daily analysis (e.g. 8)
+	endHour       int // UTC hour for last round  (e.g. 22)
 }
 
-func NewDailyRecommender(
+func NewNovaOrchestrator(
+	sessionRepo *repository.NovaSessionRepository,
 	dailyPickRepo *repository.DailyPickRepository,
 	scoreRepo *repository.ScoreRepository,
 	tradeRepo *repository.TradeRepository,
 	walletRepo *repository.WalletRepository,
 	analyzer ai.Analyzer,
-) *DailyRecommender {
-	return &DailyRecommender{
+	startHour, endHour int,
+) *NovaOrchestrator {
+	if startHour < 0 {
+		startHour = 8
+	}
+	if endHour <= startHour {
+		endHour = 22
+	}
+	return &NovaOrchestrator{
+		sessionRepo:   sessionRepo,
 		dailyPickRepo: dailyPickRepo,
 		scoreRepo:     scoreRepo,
 		tradeRepo:     tradeRepo,
 		walletRepo:    walletRepo,
 		analyzer:      analyzer,
+		startHour:     startHour,
+		endHour:       endHour,
 	}
 }
 
-func (d *DailyRecommender) Name() string { return "daily_recommender" }
+func (o *NovaOrchestrator) Name() string { return "nova_orchestrator" }
 
-func (d *DailyRecommender) RunOnce(ctx context.Context) error {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+func (o *NovaOrchestrator) RunOnce(ctx context.Context) error {
+	now := time.Now().UTC()
+	today := now.Truncate(24 * time.Hour)
+	currentHour := now.Hour()
 
-	// Step 1: Backfill yesterday's pick with follow PnL
-	_ = d.backfillYesterdayPick(ctx, today) // non-fatal
+	// Step 0: Backfill yesterday's daily pick follow PnL (non-fatal)
+	_ = o.backfillYesterdayPick(ctx, today)
 
-	// Step 2: Check if today's pick already exists
-	if existing, err := d.dailyPickRepo.GetByDate(ctx, today); err == nil && existing != nil {
-		return nil // already picked today
+	// Check if within analysis window
+	if currentHour < o.startHour || currentHour > o.endHour {
+		return nil // outside analysis window
 	}
 
-	// Step 3: Pick best trader from leaderboard
-	rows, _, err := d.scoreRepo.Leaderboard(ctx, 10, 0, "smart_score", "desc")
+	// Step 1: Already have a final pick today? Skip.
+	hasFinal, _ := o.sessionRepo.HasFinalByDate(ctx, today)
+	if hasFinal {
+		return nil
+	}
+
+	// Step 2: Determine round number
+	round := currentHour - o.startHour + 1
+	totalRounds := o.endHour - o.startHour + 1
+	isLastRound := currentHour >= o.endHour
+
+	// Step 3: Collect top 20 candidates
+	candidates, err := o.collectCandidates(ctx, 20)
 	if err != nil {
-		return fmt.Errorf("leaderboard query: %w", err)
+		return fmt.Errorf("collect candidates: %w", err)
 	}
-	if len(rows) == 0 {
-		return fmt.Errorf("no traders available for daily pick")
+	if len(candidates) == 0 {
+		return fmt.Errorf("no candidates available")
 	}
 
-	// Find the best candidate that wasn't picked in the last 7 days
-	var chosen *repository.LeaderboardRow
-	recentPicks, _ := d.dailyPickRepo.ListRecent(ctx, 7)
-	recentSet := make(map[int64]bool)
-	for _, p := range recentPicks {
-		recentSet[p.WalletID] = true
+	// Step 4: Load Nova's memory (previous rounds today)
+	memory, err := o.loadMemory(ctx, today)
+	if err != nil {
+		return fmt.Errorf("load memory: %w", err)
 	}
-	for i := range rows {
-		if !recentSet[rows[i].WalletID] {
-			chosen = &rows[i]
-			break
+
+	// Step 5: Load yesterday's result for feedback
+	yesterdayResult := o.loadYesterdayResult(ctx, today)
+
+	// Step 6: Call Nova
+	input := ai.OrchestrateInput{
+		CurrentTime:     now,
+		Round:           round,
+		TotalRounds:     totalRounds,
+		IsLastRound:     isLastRound,
+		Candidates:      candidates,
+		Memory:          memory,
+		YesterdayResult: yesterdayResult,
+	}
+
+	output, err := o.analyzer.Orchestrate(ctx, input)
+	if err != nil {
+		return fmt.Errorf("nova orchestrate: %w", err)
+	}
+
+	// Step 7: Save session (Nova's memory for this round)
+	candidatesJSON, _ := json.Marshal(output.Rankings)
+	observationsJSON, _ := json.Marshal(map[string]string{"notes": output.Observations})
+	decisionJSON, _ := json.Marshal(output)
+
+	session := &model.NovaSession{
+		SessionDate:      today,
+		Round:            round,
+		Phase:            output.Phase,
+		CandidatesJSON:   datatypes.JSON(candidatesJSON),
+		ObservationsJSON: datatypes.JSON(observationsJSON),
+		DecisionJSON:     datatypes.JSON(decisionJSON),
+		NLSummary:        output.NLSummary,
+		NLSummaryZh:      output.NLSummaryZh,
+		ModelID:          output.ModelID,
+		InputTokens:      output.InputTokens,
+		OutputTokens:     output.OutputTokens,
+		LatencyMS:        output.LatencyMS,
+	}
+
+	// Step 8: If Nova decided "final", write the daily pick
+	if output.Phase == "final" && output.FinalPick != nil {
+		walletID := output.FinalPick.WalletID
+		session.PickedWalletID = &walletID
+
+		// Get PnL for the chosen wallet
+		pnl, pnlErr := o.tradeRepo.AggregateByWalletID(ctx, walletID)
+		realizedPnL := 0.0
+		totalTrades := int64(0)
+		if pnlErr == nil {
+			realizedPnL = pnl.TradingPnL + pnl.MakerRebates
+			totalTrades = pnl.TotalTrades
+		}
+
+		// Find the wallet's score from candidates
+		smartScore := 0
+		for _, c := range candidates {
+			if c.WalletID == walletID {
+				smartScore = c.SmartScore
+				break
+			}
+		}
+
+		pick := &model.DailyPick{
+			PickDate:        today,
+			WalletID:        walletID,
+			SmartScore:      smartScore,
+			RealizedPnL:     realizedPnL,
+			TotalTrades:     totalTrades,
+			WinRate:         output.FinalPick.Confidence,
+			ReasonJSON:      datatypes.JSON(decisionJSON),
+			ReasonSummary:   output.FinalPick.Rationale,
+			ReasonSummaryZh: output.FinalPick.RationaleZh,
+			ModelID:         output.ModelID,
+		}
+		if err := o.dailyPickRepo.Create(ctx, pick); err != nil {
+			return fmt.Errorf("create daily pick: %w", err)
 		}
 	}
-	if chosen == nil {
-		chosen = &rows[0] // fallback to top if all were recent
-	}
 
-	// Get PnL data for the chosen wallet
-	pnl, err := d.tradeRepo.AggregateByWalletID(ctx, chosen.WalletID)
-	if err != nil {
-		return fmt.Errorf("aggregate pnl for wallet %d: %w", chosen.WalletID, err)
-	}
-	realizedPnL := pnl.TradingPnL + pnl.MakerRebates
-
-	// Step 4: Call Nova for recommendation reasoning
-	wallet, err := d.walletRepo.GetByID(ctx, chosen.WalletID)
-	if err != nil {
-		return fmt.Errorf("get wallet %d: %w", chosen.WalletID, err)
-	}
-
-	analysisInput := ai.WalletAnalysisInput{
-		WalletID:      chosen.WalletID,
-		WalletAddress: polyaddr.BytesToHex(wallet.Address),
-		StrategyType:  chosen.StrategyType,
-		SmartScore:    chosen.SmartScore,
-		InfoEdgeLevel: chosen.InfoEdgeLevel,
-		TradingPnL:    pnl.TradingPnL,
-		MakerRebates:  pnl.MakerRebates,
-		FeesPaid:      pnl.FeesPaid,
-		TotalTrades:   pnl.TotalTrades,
-		Volume30D:     pnl.Volume30D,
-		AsOf:          today,
-	}
-
-	var reasonJSON datatypes.JSON
-	var reasonSummary string
-	var modelID string
-
-	output, err := d.analyzer.AnalyzeWallet(ctx, analysisInput)
-	if err != nil {
-		// Nova call failed, use fallback summary
-		reasonSummary = fmt.Sprintf(
-			"Today's recommended trader (score %d, %s strategy) with %.2f USDC realized PnL across %d trades.",
-			chosen.SmartScore, chosen.StrategyType, realizedPnL, pnl.TotalTrades,
-		)
-		fallback := map[string]any{"fallback": true, "reason": reasonSummary}
-		reasonJSON, _ = json.Marshal(fallback)
-		modelID = "fallback"
-	} else {
-		reasonJSON = datatypes.JSON(output.ReportJSON)
-		reasonSummary = output.NLSummary
-		modelID = output.ModelID
-	}
-
-	// Step 5: Write daily pick
-	pick := &model.DailyPick{
-		PickDate:      today,
-		WalletID:      chosen.WalletID,
-		SmartScore:    chosen.SmartScore,
-		RealizedPnL:   realizedPnL,
-		TotalTrades:   pnl.TotalTrades,
-		WinRate:       0, // win rate requires per-trade analysis; left at 0 for now
-		ReasonJSON:    reasonJSON,
-		ReasonSummary: reasonSummary,
-		ModelID:       modelID,
-	}
-
-	return d.dailyPickRepo.Create(ctx, pick)
+	return o.sessionRepo.Create(ctx, session)
 }
 
-func (d *DailyRecommender) backfillYesterdayPick(ctx context.Context, today time.Time) error {
-	yesterday := today.Add(-24 * time.Hour)
-	pick, err := d.dailyPickRepo.GetByDate(ctx, yesterday)
+func (o *NovaOrchestrator) collectCandidates(ctx context.Context, limit int) ([]ai.CandidateData, error) {
+	rows, _, err := o.scoreRepo.Leaderboard(ctx, limit, 0, "smart_score", "desc")
 	if err != nil {
-		return nil // no pick yesterday, nothing to backfill
+		return nil, err
+	}
+
+	candidates := make([]ai.CandidateData, 0, len(rows))
+	for _, r := range rows {
+		wallet, wErr := o.walletRepo.GetByID(ctx, r.WalletID)
+		if wErr != nil {
+			continue
+		}
+		pnl, pErr := o.tradeRepo.AggregateByWalletID(ctx, r.WalletID)
+		if pErr != nil {
+			continue
+		}
+		candidates = append(candidates, ai.CandidateData{
+			WalletID:      r.WalletID,
+			Address:       polyaddr.BytesToHex(wallet.Address),
+			SmartScore:    r.SmartScore,
+			StrategyType:  r.StrategyType,
+			InfoEdgeLevel: r.InfoEdgeLevel,
+			TradingPnL:    pnl.TradingPnL,
+			MakerRebates:  pnl.MakerRebates,
+			FeesPaid:      pnl.FeesPaid,
+			TotalTrades:   pnl.TotalTrades,
+			Volume30D:     pnl.Volume30D,
+		})
+	}
+	return candidates, nil
+}
+
+func (o *NovaOrchestrator) loadMemory(ctx context.Context, today time.Time) ([]ai.SessionMemory, error) {
+	sessions, err := o.sessionRepo.ListByDate(ctx, today)
+	if err != nil {
+		return nil, err
+	}
+	memory := make([]ai.SessionMemory, 0, len(sessions))
+	for _, s := range sessions {
+		var obs struct {
+			Notes string `json:"notes"`
+		}
+		_ = json.Unmarshal(s.ObservationsJSON, &obs)
+
+		topPick := ""
+		if s.PickedWalletID != nil {
+			topPick = fmt.Sprintf("wallet_%d", *s.PickedWalletID)
+		}
+		memory = append(memory, ai.SessionMemory{
+			Round:        s.Round,
+			Phase:        s.Phase,
+			Observations: obs.Notes,
+			TopPick:      topPick,
+		})
+	}
+	return memory, nil
+}
+
+func (o *NovaOrchestrator) loadYesterdayResult(ctx context.Context, today time.Time) *ai.YesterdayResult {
+	yesterday := today.Add(-24 * time.Hour)
+	pick, err := o.dailyPickRepo.GetByDate(ctx, yesterday)
+	if err != nil || pick == nil || pick.FollowPnL == nil {
+		return nil
+	}
+
+	wallet, err := o.walletRepo.GetByID(ctx, pick.WalletID)
+	if err != nil {
+		return nil
+	}
+
+	return &ai.YesterdayResult{
+		WalletID:       pick.WalletID,
+		Address:        polyaddr.BytesToHex(wallet.Address),
+		FollowPnL:      *pick.FollowPnL,
+		TradesFollowed: pick.TradesFollowed,
+		SmartScore:     pick.SmartScore,
+	}
+}
+
+func (o *NovaOrchestrator) backfillYesterdayPick(ctx context.Context, today time.Time) error {
+	yesterday := today.Add(-24 * time.Hour)
+	pick, err := o.dailyPickRepo.GetByDate(ctx, yesterday)
+	if err != nil || pick == nil {
+		return nil
 	}
 	if pick.FollowPnL != nil {
 		return nil // already backfilled
 	}
 
-	// Calculate PnL for the picked wallet now vs at pick time
-	pnlNow, err := d.tradeRepo.AggregateByWalletID(ctx, pick.WalletID)
+	pnlNow, err := o.tradeRepo.AggregateByWalletID(ctx, pick.WalletID)
 	if err != nil {
 		return err
 	}
 	realizedNow := pnlNow.TradingPnL + pnlNow.MakerRebates
-
 	followPnL := realizedNow - pick.RealizedPnL
 	tradesFollowed := int(pnlNow.TotalTrades - pick.TotalTrades)
 	if tradesFollowed < 0 {
 		tradesFollowed = 0
 	}
 
-	return d.dailyPickRepo.UpdateFollowResult(ctx, pick.ID, tradesFollowed, followPnL)
+	return o.dailyPickRepo.UpdateFollowResult(ctx, pick.ID, tradesFollowed, followPnL)
 }

@@ -1,131 +1,144 @@
 # Easy Arbitra
 
-An AI-powered Polymarket wallet intelligence platform focused on operational conversion:
-**discover high-quality wallets -> understand why -> follow quickly -> get actionable updates**.
+A Polymarket wallet intelligence platform powered by **Amazon Nova as the analytical brain**.  
+Nova continuously evaluates profitable traders, decides the best one to recommend daily, and validates its own picks.
 
-## Product Architecture (Current)
+## How It Works
 
-### Frontend (Next.js 14)
-Main routes:
-- `/`: discovery home (featured wallets, starter portfolios, real-time signals)
-- `/wallets`: wallet exploration with strategy/pool tier/AI filters + sorting
-- `/wallets/[id]`: decision card, AI report, evidence snapshot, share card
-- `/watchlist`: portfolio summary + action-required feed + normal updates
-- `/markets`: market list
-- `/anomalies` and `/anomalies/[id]`: anomaly feed and detail
-- `/s/[id]`: share landing page optimized for external conversion
-- `/leaderboard`: redirected to `/wallets?sort_by=smart_score&order=desc`
+```
+⏰ Every hour (UTC 08:00–22:00)
+│
+├─ 1. Wake Nova
+├─ 2. Collect Top 20 candidates from leaderboard
+├─ 3. Load Nova's memory (prior rounds today)
+├─ 4. Load yesterday's validation result
+├─ 5. Nova evaluates + ranks candidates
+├─ 6. Nova decides: keep analyzing or make final pick
+├─ 7. Save analysis to nova_session (memory)
+│
+└─ When Nova says "final":
+   ├─ Write daily_pick
+   └─ Next day: backfill follow PnL → feed back to Nova
+```
 
-### Backend (Go + Gin)
-Base path: `/api/v1`
+## Key Features
 
-Core APIs:
-- Wallet exploration and profile:
-  - `GET /wallets`
-  - `GET /wallets/potential`
-  - `GET /wallets/:id/profile`
-  - `GET /wallets/:id/decision-card`
-  - `GET /wallets/:id/share-card`
-  - `GET /wallets/:id/share-landing`
-  - `GET /wallets/:id/explanations`
-  - `GET /wallets/:id/info-edge`
-- Watchlist conversion and action feed:
-  - `GET /watchlist`
-  - `POST /watchlist`
-  - `POST /watchlist/batch`
-  - `DELETE /watchlist/:wallet_id`
-  - `GET /watchlist/feed`
-  - `GET /watchlist/summary`
-- Discovery:
-  - `GET /ops/highlights`
-  - `GET /portfolios`
-  - `GET /stats/overview`
-  - `GET /leaderboard`
-- Market and anomaly:
-  - `GET /markets`
-  - `GET /markets/:id`
-  - `GET /anomalies`
-  - `GET /anomalies/:id`
-  - `PATCH /anomalies/:id/acknowledge`
-- AI:
-  - `POST /ai/analyze/:wallet_id`
-  - `GET /ai/report/:wallet_id`
-  - `GET /ai/report/:wallet_id/history`
-
-### Data and workers
-Key tables:
-- `wallet`, `market`, `token`, `trade_fill`, `offchain_event`
-- `wallet_features_daily`, `wallet_score`, `ai_analysis_report`
-- `anomaly_alert`, `watchlist`, `wallet_update_event`, `portfolio`
-- `ingest_cursor`, `ingest_run`
-
-Important product fields:
-- `wallet_score.pool_tier`, `suitable_for`, `risk_level`, `suggested_position`, `momentum`
-- `wallet_update_event.action_required`, `suggestion`, `suggestion_zh`
-- `portfolio.wallet_ids`
-
-Workers continuously ingest market/trade/offchain data and update features, scores, anomalies, and AI-ready signals.
+| Feature | Description |
+|---------|-------------|
+| **Nova Thinking Timeline** | Watch Nova's hourly analysis rounds in real-time |
+| **Daily Pick** | Nova-selected best trader with rationale (EN + ZH) |
+| **Follow PnL** | Next-day validation of Nova's recommendation |
+| **Leaderboard** | SmartScore-ranked profitable wallets |
+| **Wallet Profiles** | Stats, positions, trade history per wallet |
 
 ## Tech Stack
-- Frontend: Next.js, TypeScript, Tailwind CSS
-- Backend: Go, Gin, GORM
-- Database: PostgreSQL
-- Runtime: Docker Compose + Nginx
+
+| Layer | Technology |
+|-------|-----------|
+| AI Brain | Amazon Nova (Bedrock / Dev API) |
+| Frontend | Next.js 14, TypeScript, Tailwind CSS |
+| Backend | Go, Gin, GORM |
+| Database | PostgreSQL |
+| Runtime | Docker Compose + Nginx |
+
+## Frontend Routes
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Home — daily pick banner + leaderboard |
+| `/daily-picks` | Nova thinking timeline + pick + history |
+| `/leaderboard` | Full leaderboard |
+| `/wallets` | Wallet explorer |
+| `/wallets/[id]` | Wallet detail |
+| `/markets` | Market browser |
+
+## API Endpoints
+
+Base: `/api/v1`
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/wallets/potential` | Profitable wallets |
+| GET | `/wallets/:id/profile` | Wallet profile |
+| GET | `/wallets/:id/trades` | Trade history |
+| GET | `/wallets/:id/positions` | Current positions |
+| GET | `/leaderboard` | SmartScore leaderboard |
+| GET | `/markets` | Market browser |
+| GET | `/daily-pick` | Today's Nova pick |
+| GET | `/daily-pick/history` | Pick history + follow PnL |
+| GET | `/nova/sessions` | Nova's analysis rounds |
+| GET | `/stats/overview` | Platform stats |
 
 ## Repository Structure
-- `backend/`: API, services, repositories, workers, migrations
-- `frontend/`: App Router UI, components, typed API client
-- `scripts/`: bootstrap and smoke scripts
-- `ops/`: nginx config and operational helpers
-- `docs/`: product and architecture docs
+
+```
+├── backend/
+│   ├── cmd/server/           # Entrypoint
+│   ├── config/               # YAML + env config
+│   └── internal/
+│       ├── ai/               # Nova integration (Orchestrate + AnalyzeWallet)
+│       ├── api/              # Gin handlers + router
+│       ├── client/           # Polymarket API clients
+│       ├── model/            # GORM models (Wallet, NovaSession, DailyPick...)
+│       ├── repository/       # SQL queries
+│       ├── service/          # Business logic
+│       └── worker/           # NovaOrchestrator + data syncers
+├── frontend/
+│   ├── src/app/              # Next.js App Router pages
+│   ├── src/components/       # UI components
+│   └── src/lib/              # API client, types, i18n
+├── scripts/                  # Bootstrap + smoke tests
+├── ops/                      # Nginx config
+└── docs/                     # Architecture docs
+```
 
 ## Local Development
 
 ### Prerequisites
 - Docker + Docker Compose
-- (Optional) Go and Node.js for non-container local runs
+- (Optional) Go 1.22+ and Node.js 20+ for non-container runs
 
-### One-command bootstrap (recommended)
+### Quick Start
 ```bash
 ./scripts/bootstrap_dev.sh
 ```
-This will:
-1. Start `postgres`, `backend`, `frontend` containers.
-2. Run DB migrations.
-3. Verify backend health/readiness.
-4. Run API/UI smoke scripts.
 
-### Manual commands
-Backend:
+### Manual
 ```bash
-cd backend
-make run
-make test
-make migrate
+# Backend
+cd backend && make run    # or: go run ./cmd/server
+cd backend && make test
+
+# Frontend
+cd frontend && npm run dev
+cd frontend && npm run build
 ```
 
-Frontend:
+## Configuration
+
+Key environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NOVA_ENABLED` | `false` | Enable Amazon Nova AI |
+| `NOVA_PROVIDER` | `devapi` | `bedrock` or `devapi` |
+| `NOVA_API_KEY` | — | API key (Dev API mode) |
+| `WORKER_NOVA_ORCHESTRATOR_INTERVAL` | `1h` | Analysis frequency |
+| `WORKER_NOVA_ORCHESTRATOR_START_HOUR` | `8` | UTC start hour |
+| `WORKER_NOVA_ORCHESTRATOR_END_HOUR` | `22` | UTC end hour |
+| `DATABASE_AUTO_MIGRATE` | `false` | Auto-create tables on startup |
+
+## Verification
+
 ```bash
-cd frontend
-npm run dev
-npm run build
+cd backend  && go build ./... && go vet ./... && go test ./...
+cd frontend && npm run build
 ```
 
-## Docker Compose Notes
-- Public app endpoint: `http://localhost:3000`
-- Backend health endpoints:
-  - `http://localhost:8080/healthz`
-  - `http://localhost:8080/readyz`
-- If frontend runtime reports missing module errors after dependency updates, recreate frontend service with volume cleanup (`node_modules` volume can be stale).
+## Docker Compose
 
-## Verification Checklist
-Minimum local gate before PR:
-1. `cd backend && go test ./...`
-2. `cd frontend && npm run build`
-3. `./scripts/e2e_api_smoke.sh`
-4. `./scripts/e2e_ui_smoke.sh`
+- App: `http://localhost:3000`
+- Health: `http://localhost:8080/healthz`
+- Ready: `http://localhost:8080/readyz`
 
-## Migrations and Config
-- Keep `DATABASE_AUTO_MIGRATE=false` in Docker.
-- Use `cmd/migrate` / migration files for deterministic schema changes.
-- Never commit secrets; use `.env` based on `.env.example`.
+> If frontend reports missing module errors after dependency changes, recreate the service with volume cleanup.
