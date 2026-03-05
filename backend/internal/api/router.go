@@ -43,6 +43,13 @@ func NewRouter(h *handler.Handlers, frontendURL string) *gin.Engine {
 
 		// Nova Sessions (thinking timeline)
 		v1.GET("/nova/sessions", h.ListNovaSessions)
+
+		// Nova Insight (AI brain visualization)
+		v1.GET("/nova/status", h.GetNovaStatus)
+		v1.GET("/nova/timeline/:date", h.GetNovaTimeline)
+		v1.GET("/nova/candidates/:date", h.GetNovaCandidates)
+		v1.GET("/nova/decision-explain/:pick_id", h.GetNovaDecisionExplanation)
+		v1.GET("/nova/memory", h.GetNovaMemory)
 	}
 
 	return r

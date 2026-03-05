@@ -1114,6 +1114,15 @@ func (r *DailyPickRepository) Create(ctx context.Context, pick *model.DailyPick)
 	return r.db.WithContext(ctx).Create(pick).Error
 }
 
+func (r *DailyPickRepository) GetByID(ctx context.Context, id int64) (*model.DailyPick, error) {
+	var row model.DailyPick
+	err := r.db.WithContext(ctx).First(&row, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *DailyPickRepository) GetByDate(ctx context.Context, date time.Time) (*model.DailyPick, error) {
 	var row model.DailyPick
 	err := r.db.WithContext(ctx).Where("pick_date = ?", date.Format("2006-01-02")).First(&row).Error

@@ -1,59 +1,12 @@
 import Link from "next/link";
-import { Sparkles, TrendingUp, TrendingDown, Brain, Clock, CheckCircle, Loader2 } from "lucide-react";
-import { getDailyPick, getDailyPickHistory, getNovaSessions } from "@/lib/api";
+import { Sparkles, TrendingUp, TrendingDown, Brain, Clock, Users } from "lucide-react";
+import { getDailyPick, getDailyPickHistory, getNovaTimeline, getNovaDecisionExplanation, getNovaCandidates } from "@/lib/api";
 import { getLocaleFromCookies } from "@/lib/i18n-server";
-import type { NovaSession } from "@/lib/types";
+import { ThinkingTimeline } from "@/components/nova/ThinkingTimeline";
+import { DecisionExplainer } from "@/components/nova/DecisionExplainer";
+import { CandidateScoreCard } from "@/components/nova/CandidateScoreCard";
 
 export const dynamic = "force-dynamic";
-
-function PhaseIcon({ phase }: { phase: string }) {
-    if (phase === "final") return <CheckCircle className="h-4 w-4 text-tint-green" />;
-    return <Loader2 className="h-4 w-4 text-tint-blue animate-spin" />;
-}
-
-function SessionCard({ session, locale }: { session: NovaSession; locale: string }) {
-    const obs = session.observations_json as { notes?: string } | null;
-    const observationText = obs?.notes || "";
-
-    return (
-        <div className={[
-            "relative rounded-xl p-4 transition-all",
-            session.phase === "final"
-                ? "bg-gradient-to-r from-tint-green/10 to-tint-blue/5 border border-tint-green/20"
-                : "bg-surface-secondary border border-separator/30",
-        ].join(" ")}>
-            <div className="flex items-center gap-2 mb-2">
-                <PhaseIcon phase={session.phase} />
-                <span className="text-caption-1 font-bold text-label-secondary uppercase tracking-wide">
-                    Round {session.round}
-                </span>
-                <span className="text-caption-2 text-label-quaternary">
-                    {new Date(session.created_at).toLocaleTimeString()}
-                </span>
-                {session.phase === "final" && (
-                    <span className="ml-auto rounded-full bg-tint-green/15 px-2.5 py-0.5 text-caption-2 font-bold text-tint-green">
-                        FINAL
-                    </span>
-                )}
-            </div>
-            <p className="text-body text-label-primary">
-                {locale === "zh" && session.nl_summary_zh ? session.nl_summary_zh : session.nl_summary}
-            </p>
-            {observationText && (
-                <div className="mt-2 rounded-lg bg-surface-tertiary/60 p-3">
-                    <p className="text-caption-1 text-label-tertiary italic">
-                        💭 {observationText}
-                    </p>
-                </div>
-            )}
-            <div className="mt-2 flex gap-3 text-caption-2 text-label-quaternary">
-                <span>{session.model_id}</span>
-                <span>{session.input_tokens + session.output_tokens} tokens</span>
-                <span>{session.latency_ms}ms</span>
-            </div>
-        </div>
-    );
-}
 
 export default async function DailyPicksPage() {
     const locale = await getLocaleFromCookies();
@@ -72,14 +25,34 @@ export default async function DailyPicksPage() {
         // no history
     }
 
-    let sessions: NovaSession[] = [];
+    // Get today's date for timeline
+    const today = new Date().toISOString().split('T')[0];
+    let timeline: Awaited<ReturnType<typeof getNovaTimeline>> = [];
     try {
-        sessions = await getNovaSessions();
+        timeline = await getNovaTimeline(today);
     } catch {
-        // no sessions
+        // no timeline
     }
 
-    const hasFinal = sessions.some((s) => s.phase === "final");
+    // Get candidates
+    let candidates: Awaited<ReturnType<typeof getNovaCandidates>> = [];
+    try {
+        candidates = await getNovaCandidates(today);
+    } catch {
+        // no candidates
+    }
+
+    // Get decision explanation if we have a pick
+    let explanation: Awaited<ReturnType<typeof getNovaDecisionExplanation>> | null = null;
+    if (todayPick) {
+        try {
+            explanation = await getNovaDecisionExplanation(todayPick.pick.id);
+        } catch {
+            // no explanation
+        }
+    }
+
+    const hasFinal = timeline.some((r) => r.session.phase === "final");
 
     return (
         <section className="space-y-6">
@@ -88,12 +61,12 @@ export default async function DailyPicksPage() {
             </h1>
 
             {/* ── Nova Thinking Timeline ── */}
-            {sessions.length > 0 && (
+            {timeline.length > 0 && (
                 <div className="opacity-0 animate-slide-up stagger-2">
                     <div className="flex items-center gap-2 mb-4">
                         <Brain className="h-5 w-5 text-tint-purple" />
                         <h2 className="text-headline font-bold text-label-primary">
-                            {locale === "zh" ? "Nova 分析过程" : "Nova's Analysis Timeline"}
+                            {locale === "zh" ? "Nova 思考过程" : "Nova's Thinking Process"}
                         </h2>
                         {!hasFinal && (
                             <span className="ml-2 flex items-center gap-1 rounded-full bg-tint-blue/10 px-3 py-1 text-caption-2 font-medium text-tint-blue">
@@ -103,21 +76,7 @@ export default async function DailyPicksPage() {
                         )}
                     </div>
 
-                    <div className="relative space-y-3 pl-6">
-                        {/* Vertical timeline line */}
-                        <div className="absolute left-2 top-2 bottom-2 w-px bg-separator" />
-
-                        {sessions.map((session) => (
-                            <div key={session.id} className="relative">
-                                {/* Timeline dot */}
-                                <div className={[
-                                    "absolute -left-[18px] top-5 h-2.5 w-2.5 rounded-full",
-                                    session.phase === "final" ? "bg-tint-green" : "bg-tint-blue",
-                                ].join(" ")} />
-                                <SessionCard session={session} locale={locale} />
-                            </div>
-                        ))}
-                    </div>
+                    <ThinkingTimeline rounds={timeline} locale={locale} />
                 </div>
             )}
 
@@ -180,20 +139,62 @@ export default async function DailyPicksPage() {
                             </p>
                         </div>
                     )}
+
+                    {/* Decision Explanation */}
+                    {explanation && (
+                        <div className="mt-4 rounded-xl bg-surface-primary/60 p-4">
+                            <h3 className="text-subheadline font-bold text-label-primary mb-4">
+                                {locale === "zh" ? "Nova 决策分析" : "Nova's Decision Analysis"}
+                            </h3>
+                            <DecisionExplainer explanation={explanation} locale={locale} />
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="rounded-2xl bg-surface-secondary p-6 text-center opacity-0 animate-slide-up stagger-3">
                     <p className="text-body text-label-tertiary">
-                        {sessions.length > 0
+                        {timeline.length > 0
                             ? (locale === "zh" ? "Nova 还在分析中，稍后会做出最终推荐..." : "Nova is still analyzing. Final pick coming soon...")
                             : (locale === "zh" ? "今日推荐尚未生成，请稍后再来。" : "Today's pick has not been generated yet. Check back later.")}
                     </p>
                 </div>
             )}
 
+            {/* ── Candidate Wallets ── */}
+            {candidates.length > 0 && (
+                <div className="opacity-0 animate-slide-up stagger-4">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Users className="h-5 w-5 text-tint-blue" />
+                        <h2 className="text-headline font-bold text-label-primary">
+                            {locale === "zh" ? "候选钱包评分" : "Candidate Wallet Scores"}
+                        </h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {candidates.slice(0, 6).map((candidate) => (
+                            <CandidateScoreCard
+                                key={candidate.wallet_id}
+                                candidate={candidate}
+                                locale={locale}
+                            />
+                        ))}
+                    </div>
+
+                    {candidates.length > 6 && (
+                        <div className="mt-4 text-center">
+                            <p className="text-caption-1 text-label-tertiary">
+                                {locale === "zh" 
+                                    ? `还有 ${candidates.length - 6} 个候选钱包...` 
+                                    : `${candidates.length - 6} more candidates...`}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* ── History ── */}
             {history.length > 0 && (
-                <div className="opacity-0 animate-slide-up stagger-4">
+                <div className="opacity-0 animate-slide-up stagger-5">
                     <h2 className="text-title-3 font-bold text-label-primary mb-4">
                         {locale === "zh" ? "推荐历史 & 跟单结果" : "History & Follow Results"}
                     </h2>

@@ -161,5 +161,98 @@ export type NovaSession = {
   input_tokens: number;
   output_tokens: number;
   latency_ms: number;
+  confidence_score?: number;
+  focus_metrics?: Record<string, unknown>;
+  hesitation_points?: Record<string, unknown>;
   created_at: string;
+};
+
+
+// ── Nova Insight (AI Brain Visualization) ──
+
+export type NovaStatus = {
+  is_active: boolean;
+  current_round: number;
+  total_rounds: number;
+  phase: "analyzing" | "final" | "verified";
+  confidence_score?: number;
+  focus_metrics: string[];
+  candidate_count: number;
+  last_updated: string;
+  next_round_at?: string;
+  session_date: string;
+};
+
+export type ThinkingRound = {
+  session: NovaSession;
+  confidence_change?: number;
+  is_breakthrough: boolean;
+  is_hesitation: boolean;
+};
+
+export type CandidateScore = {
+  wallet_id: number;
+  address: string;
+  pseudonym?: string;
+  nova_score: number;
+  win_rate: number;
+  stability: number;
+  activity: number;
+  nova_comment: string;
+  nova_comment_zh: string;
+  rank: number;
+};
+
+export type DecisionExplanation = {
+  pick_id: number;
+  wallet_id: number;
+  weight_distribution: Record<string, number>;
+  metric_comparison: MetricComparison[];
+  key_reasons: string[];
+  key_reasons_zh: string[];
+};
+
+export type MetricComparison = {
+  metric: string;
+  metric_zh: string;
+  pick_value: number;
+  average_value: number;
+  nova_standard: string;
+  passed: boolean;
+};
+
+
+// ── Nova Memory (Learning & History) ──
+
+export type LearningRecord = {
+  validation_date: string;
+  pick_wallet_id: number;
+  wallet_address: string;
+  follow_pnl?: number;
+  is_success: boolean;
+  lesson_learned: string;
+  lesson_learned_zh: string;
+  strategy_adjustment?: Record<string, unknown>;
+};
+
+export type StrategyChange = {
+  date: string;
+  description: string;
+  description_zh: string;
+};
+
+export type MemorySummary = {
+  total_validations: number;
+  success_count: number;
+  failure_count: number;
+  success_rate: number;
+  weekly_success_rate: number;
+  recent_lessons: string[];
+  recent_lessons_zh: string[];
+  strategy_evolution: StrategyChange[];
+};
+
+export type NovaMemory = {
+  summary: MemorySummary;
+  history: LearningRecord[];
 };

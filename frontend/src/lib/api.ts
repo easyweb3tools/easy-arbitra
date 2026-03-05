@@ -1,12 +1,17 @@
 import {
+  CandidateScore,
   DailyPick,
+  DecisionExplanation,
   LeaderboardItem,
   Market,
+  NovaMemory,
   NovaSession,
+  NovaStatus,
   OverviewStats,
   Paged,
   PnLHistoryPoint,
   PotentialWallet,
+  ThinkingRound,
   TradeHistoryItem,
   Wallet,
   WalletPosition,
@@ -92,4 +97,28 @@ export function getDailyPickHistory(limit = 14) {
 export function getNovaSessions(date?: string) {
   const q = date ? `?date=${date}` : "";
   return getJSON<NovaSession[]>(`/nova/sessions${q}`);
+}
+
+
+// ── Nova Insight (AI Brain Visualization) ──
+
+export function getNovaStatus() {
+  return getJSON<NovaStatus>("/nova/status");
+}
+
+export function getNovaTimeline(date: string) {
+  return getJSON<ThinkingRound[]>(`/nova/timeline/${date}`);
+}
+
+export function getNovaCandidates(date: string) {
+  return getJSON<CandidateScore[]>(`/nova/candidates/${date}`);
+}
+
+export function getNovaDecisionExplanation(pickId: number) {
+  return getJSON<DecisionExplanation>(`/nova/decision-explain/${pickId}`);
+}
+
+
+export function getNovaMemory(limit = 30) {
+  return getJSON<NovaMemory>(`/nova/memory?limit=${limit}`);
 }
