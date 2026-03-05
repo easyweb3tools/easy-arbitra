@@ -192,7 +192,25 @@ type NovaSession struct {
 	InputTokens      int            `gorm:"column:input_tokens" json:"input_tokens"`
 	OutputTokens     int            `gorm:"column:output_tokens" json:"output_tokens"`
 	LatencyMS        int            `gorm:"column:latency_ms" json:"latency_ms"`
+	ConfidenceScore  *float64       `gorm:"column:confidence_score;type:decimal(5,2)" json:"confidence_score,omitempty"`
+	FocusMetrics     datatypes.JSON `gorm:"column:focus_metrics;type:jsonb" json:"focus_metrics,omitempty"`
+	HesitationPoints datatypes.JSON `gorm:"column:hesitation_points;type:jsonb" json:"hesitation_points,omitempty"`
 	CreatedAt        time.Time      `gorm:"column:created_at" json:"created_at"`
 }
 
 func (NovaSession) TableName() string { return "nova_session" }
+
+// NovaLearningLog represents Nova's learning from validation results.
+type NovaLearningLog struct {
+	ID                 int64          `gorm:"column:id;primaryKey" json:"id"`
+	ValidationDate     time.Time      `gorm:"column:validation_date;type:date;not null;index" json:"validation_date"`
+	PickWalletID       int64          `gorm:"column:pick_wallet_id;not null" json:"pick_wallet_id"`
+	FollowPnL          *float64       `gorm:"column:follow_pnl;type:decimal(16,6)" json:"follow_pnl,omitempty"`
+	IsSuccess          bool           `gorm:"column:is_success" json:"is_success"`
+	LessonLearned      string         `gorm:"column:lesson_learned" json:"lesson_learned"`
+	LessonLearnedZh    string         `gorm:"column:lesson_learned_zh" json:"lesson_learned_zh"`
+	StrategyAdjustment datatypes.JSON `gorm:"column:strategy_adjustment;type:jsonb" json:"strategy_adjustment,omitempty"`
+	CreatedAt          time.Time      `gorm:"column:created_at" json:"created_at"`
+}
+
+func (NovaLearningLog) TableName() string { return "nova_learning_log" }

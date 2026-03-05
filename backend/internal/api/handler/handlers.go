@@ -14,19 +14,21 @@ import (
 )
 
 type Handlers struct {
-	walletService *service.WalletService
-	marketService *service.MarketService
-	statsService  *service.StatsService
-	dailyPickRepo *repository.DailyPickRepository
-	walletRepo    *repository.WalletRepository
-	sessionRepo   *repository.NovaSessionRepository
-	readyCheck    func(*gin.Context) error
+	walletService      *service.WalletService
+	marketService      *service.MarketService
+	statsService       *service.StatsService
+	novaInsightService *service.NovaInsightService
+	dailyPickRepo      *repository.DailyPickRepository
+	walletRepo         *repository.WalletRepository
+	sessionRepo        *repository.NovaSessionRepository
+	readyCheck         func(*gin.Context) error
 }
 
 func New(
 	walletService *service.WalletService,
 	marketService *service.MarketService,
 	statsService *service.StatsService,
+	novaInsightService *service.NovaInsightService,
 	dailyPickRepo *repository.DailyPickRepository,
 	walletRepo *repository.WalletRepository,
 	sessionRepo *repository.NovaSessionRepository,
@@ -34,7 +36,8 @@ func New(
 ) *Handlers {
 	return &Handlers{
 		walletService: walletService, marketService: marketService, statsService: statsService,
-		dailyPickRepo: dailyPickRepo, walletRepo: walletRepo, sessionRepo: sessionRepo, readyCheck: readyCheck,
+		novaInsightService: novaInsightService,
+		dailyPickRepo:      dailyPickRepo, walletRepo: walletRepo, sessionRepo: sessionRepo, readyCheck: readyCheck,
 	}
 }
 
@@ -326,4 +329,100 @@ func parseInt16Ptr(input string) *int16 {
 	}
 	val := int16(v)
 	return &val
+}
+
+// ── Nova Insight Handlers ──
+
+func (h *Handlers) GetNovaStatus(c *gin.Context) {
+	status, err := h.novaInsightService.GetCurrentStatus(c.Request.Context())
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, status)
+}
+
+func (h *Handlers) GetNovaTimeline(c *gin.Context) {
+	dateStr := c.Param("date")
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		response.BadRequest(c, "invalid date format, use YYYY-MM-DD")
+		return
+	}
+	timeline, err := h.novaInsightService.GetThinkingTimeline(c.Request.Context(), date)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, timeline)
+}
+
+func (h *Handlers) GetNovaCandidates(c *gin.Context) {
+	dateStr := c.Param("date")
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		response.BadRequest(c, "invalid date format, use YYYY-MM-DD")
+		return
+	}
+	candidates, err := h.novaInsightService.GetCandidateScores(c.Request.Context(), date)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, candidates)
+}
+
+func (h *Handlers) GetNovaDecisionExplanation(c *gin.Context) {
+	pickID, err := strconv.ParseInt(c.Param("pick_id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid pick_id")
+		return
+	}
+
+	// Get the pick to extract date and wallet_id
+	pick, err := h.dailyPickRepo.GetByID(c.Request.Context(), pickID)
+	if err != nil {
+		response.NotFound(c, "pick not found")
+		return
+	}
+
+	explanation, err := h.novaInsightService.GetDecisionExplanation(
+		c.Request.Context(),
+		pickID,
+		pick.PickDate,
+		pick.WalletID,
+	)
+	if err != nil {
+		if err == service.ErrNotFound {
+			response.NotFound(c, "decision explanation not found")
+			return
+		}
+		response.Internal(c, err.Error())
+		return
+	}
+	response.OK(c, explanation)
+}
+
+func (h *Handlers) GetNovaMemory(c *gin.Context) {
+	limit := parsePositiveInt(c.DefaultQuery("limit", "30"), 30)
+	if limit > 90 {
+		limit = 90
+	}
+
+	history, err := h.novaInsightService.GetLearningHistory(c.Request.Context(), limit)
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+
+	summary, err := h.novaInsightService.GetMemorySummary(c.Request.Context())
+	if err != nil {
+		response.Internal(c, err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"summary": summary,
+		"history": history,
+	})
 }

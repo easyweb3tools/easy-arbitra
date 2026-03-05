@@ -74,6 +74,7 @@ func main() {
 			&model.IngestRun{},
 			&model.DailyPick{},
 			&model.NovaSession{},
+			&model.NovaLearningLog{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
@@ -94,11 +95,12 @@ func main() {
 	walletService := service.NewWalletService(walletRepo, scoreRepo, tradeRepo, featureRepo, aiReportRepo, infoEdgeService)
 	marketService := service.NewMarketService(marketRepo)
 	statsService := service.NewStatsService(walletRepo, marketRepo, scoreRepo)
+	novaInsightService := service.NewNovaInsightService(sessionRepo, walletRepo)
 	classifier := service.NewClassificationService(featureRepo, scoreRepo)
 	analyzer := ai.NewAnalyzer(cfg.Nova, lg)
 
 	h := handler.New(
-		walletService, marketService, statsService,
+		walletService, marketService, statsService, novaInsightService,
 		dailyPickRepo, walletRepo, sessionRepo,
 		func(c *gin.Context) error {
 			return sqlDB.PingContext(c.Request.Context())
