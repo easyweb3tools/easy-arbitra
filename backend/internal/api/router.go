@@ -40,6 +40,9 @@ func NewRouter(h *handler.Handlers, frontendURL string) *gin.Engine {
 		// Daily Pick
 		v1.GET("/daily-pick", h.GetDailyPick)
 		v1.GET("/daily-pick/history", h.ListDailyPickHistory)
+
+		// Nova Sessions (thinking timeline)
+		v1.GET("/nova/sessions", h.ListNovaSessions)
 	}
 
 	return r

@@ -1,18 +1,19 @@
 # Easy Arbitra — Product Architecture
 
-Last updated: 2026-03-02  
-Status: Simplified architecture — focused on leaderboard + daily pick
+Last updated: 2026-03-05  
+Status: Nova-as-Brain architecture — Nova drives analysis and daily pick decisions
 
 ## 1. Product Definition
 
 Easy Arbitra is a Polymarket wallet intelligence product with one clear value proposition:  
-**Discover profitable traders, recommend the best one daily, and track follow PnL.**
+**Amazon Nova is the analytical brain that continuously evaluates profitable traders, decides the best one to recommend daily, and validates its own picks.**
 
 Core capabilities:
 - **Leaderboard** — ranked list of profitable wallets by SmartScore
-- **Daily Pick** — AI-recommended best trader each day (powered by Amazon Nova)
-- **Follow PnL Tracking** — next-day performance of recommended trader's trades
+- **Nova-Driven Daily Pick** — Nova analyzes candidates hourly, builds memory across rounds, and self-determines when to make its final recommendation
+- **Follow PnL Tracking** — next-day validation of Nova's pick, fed back as learning signal
 - **Wallet Profiles** — detailed stats, positions, and trade history per wallet
+- **Nova Thinking Timeline** — real-time visibility into Nova's analysis process
 
 ## 2. Frontend Routes
 
@@ -21,7 +22,7 @@ Next.js 14 App Router (6 routes):
 | Route | Purpose |
 |-------|---------|
 | `/` | Home — daily pick banner + leaderboard preview |
-| `/daily-picks` | Today's recommended trader + history with follow PnL |
+| `/daily-picks` | Nova thinking timeline + today's pick + history with follow PnL |
 | `/leaderboard` | Full leaderboard with sorting |
 | `/wallets` | Wallet explorer with strategy/tier filters |
 | `/wallets/[id]` | Wallet profile: stats, positions, trade history |
@@ -34,18 +35,44 @@ Next.js 14 App Router (6 routes):
 - **Frontend**: Next.js 14 + TypeScript + Tailwind CSS
 - **API**: Gin (Go)
 - **Database**: PostgreSQL + GORM
+- **AI Brain**: Amazon Nova (via Bedrock or Dev API)
 - **Workers**: scheduled background jobs
-- **AI**: Amazon Nova (via Bedrock or Dev API) for daily pick reasoning
 - **Reverse proxy**: Nginx
 - **Runtime**: Docker Compose
 
-### 3.2 Request Flow
+### 3.2 Nova-as-Brain Architecture
 
 ```
-Browser → Nginx (:3000) → Next.js (SSR) or Gin API (/api/v1)
-                                              ↓
-                                     Service → Repository → PostgreSQL
+┌──────────────────────────────────────────────────────┐
+│                   ⏰ Hourly Timer                     │
+│               (UTC 08:00 – 22:00)                    │
+└──────────────┬───────────────────────────────────────┘
+               ▼
+┌──────────────────────────────────────────────────────┐
+│           NovaOrchestrator Worker                     │
+│                                                      │
+│  1. Backfill yesterday's follow PnL                  │
+│  2. Load Nova's memory (prior rounds today)          │
+│  3. Collect Top 20 candidates from leaderboard       │
+│  4. Load yesterday's validation result               │
+│  5. ─── Call Nova Orchestrate ──────────────────┐    │
+│                                                 │    │
+│     ┌───────────────────────────────────────┐   │    │
+│     │  🧠 Amazon Nova                       │   │    │
+│     │                                       │   │    │
+│     │  Receives: candidates + memory +      │   │    │
+│     │            yesterday's feedback       │   │    │
+│     │                                       │   │    │
+│     │  Decides:  "analyzing" → save memo    │   │    │
+│     │            "final" → pick winner      │   │    │
+│     └───────────────────────────────────────┘   │    │
+│                                                 │    │
+│  6. Save nova_session (memory)          ◄───────┘    │
+│  7. If final → write daily_pick                      │
+└──────────────────────────────────────────────────────┘
 ```
+
+**Key design**: Nova is called hourly and **it decides** whether to continue analyzing or make its final pick. It can finalize early if confident, or use all rounds up to the window end.
 
 ### 3.3 Backend Layout
 
@@ -54,15 +81,18 @@ backend/
 ├── cmd/server/          # Entrypoint: API + workers
 ├── config/              # Configuration (YAML + env)
 ├── internal/
-│   ├── ai/              # Amazon Nova integration (Bedrock/DevAPI)
+│   ├── ai/              # Amazon Nova integration
+│   │   ├── bedrock_client.go   # Analyzer: AnalyzeWallet + Orchestrate
+│   │   ├── orchestrate.go      # Types, prompts, response parser
+│   │   └── orchestrate_impl.go # Orchestrate for Bedrock/DevAPI/Mock
 │   ├── api/handler/     # HTTP handlers
 │   ├── api/middleware/   # Request ID, CORS, rate limit
 │   ├── client/          # External API clients (Polymarket)
 │   ├── model/           # GORM models
 │   ├── repository/      # SQL queries
 │   ├── service/         # Business logic
-│   └── worker/          # Background jobs
-└── pkg/                 # Shared utilities (logger, polyaddr, response)
+│   └── worker/          # Background jobs (NovaOrchestrator)
+└── pkg/                 # Shared utilities
 ```
 
 ## 4. API Endpoints
@@ -81,6 +111,7 @@ Base path: `/api/v1`
 | GET | `/stats/overview` | Platform stats |
 | GET | `/daily-pick` | Today's recommended trader |
 | GET | `/daily-pick/history` | Daily pick history with follow PnL |
+| GET | `/nova/sessions` | Nova's analysis rounds for a given date |
 | GET | `/healthz` | Health check |
 | GET | `/readyz` | Readiness check |
 
@@ -96,17 +127,22 @@ Base path: `/api/v1`
 | `trade_fill` | Individual trades |
 | `wallet_features_daily` | Computed daily features |
 | `wallet_score` | SmartScore + strategy classification |
+| `nova_session` | **Nova's working memory** — one row per hourly analysis round |
 | `daily_pick` | Daily recommended trader + follow PnL |
 | `ingest_cursor` | Resumable sync state |
 | `ingest_run` | Worker run audit log |
 
-### Key Fields
+### nova_session (Nova's Brain Memory)
 
-- `wallet_score.smart_score` — core ranking metric
-- `wallet_score.strategy_type` — classification label
-- `wallet_score.pool_tier` — `star` / `strategy` / `observation`
-- `daily_pick.reason_json` — Nova-generated analysis
-- `daily_pick.follow_pnl` — next-day follow result
+| Field | Type | Purpose |
+|-------|------|---------|
+| `session_date` | date | Analysis day |
+| `round` | int | Round number (1 = first hour) |
+| `phase` | text | `analyzing` / `final` / `verified` |
+| `candidates_json` | jsonb | Nova's ranking of candidates |
+| `observations_json` | jsonb | Nova's observation notes (recalled next round) |
+| `decision_json` | jsonb | Full Nova response |
+| `picked_wallet_id` | int | Set when phase = `final` |
 
 ## 6. Workers
 
@@ -117,25 +153,60 @@ Base path: `/api/v1`
 | `TradeBackfillSyncer` | 5m | Backfill historical trades |
 | `FeatureBuilder` | 30m | Compute wallet features |
 | `ScoreCalculator` | 1h | Classify & score wallets |
-| `DailyRecommender` | 6h | Pick best trader + Nova reasoning + backfill PnL |
+| **`NovaOrchestrator`** | **1h** | **Wake Nova → analyze → memory → pick** |
 
-### DailyRecommender Flow
+### NovaOrchestrator Flow (per hour)
 
 1. **Backfill** — calculate yesterday's pick follow PnL
-2. **Select** — top 10 from leaderboard, exclude last 7 days' picks
-3. **Analyze** — call Amazon Nova for recommendation reasoning
-4. **Write** — save `daily_pick` record
+2. **Window check** — skip if outside UTC 08:00–22:00
+3. **Final check** — skip if today already has a `phase=final` session
+4. **Collect** — top 20 candidates from leaderboard with PnL data
+5. **Memory** — load all prior `nova_session` rounds for today
+6. **Feedback** — load yesterday's validation result
+7. **Orchestrate** — call Nova with candidates + memory + feedback
+8. **Store** — save `nova_session` record
+9. **If final** — also write `daily_pick` with Nova's chosen wallet
 
-## 7. AI Integration
+## 7. AI Integration (Amazon Nova)
 
-Amazon Nova is used for generating daily pick recommendations:
-- Provider: Bedrock SDK or Dev API (configurable)
-- Model: `nova-pro-v1`
-- Input: wallet stats (PnL, trades, strategy, score, volume)
-- Output: structured analysis JSON + natural language summary
-- Fallback: template-based summary if Nova is unavailable
+Nova is the **central decision maker**, not just an explainer.
+
+### Analyzer Interface
+
+```go
+type Analyzer interface {
+    AnalyzeWallet(ctx, in WalletAnalysisInput) (*WalletAnalysisOutput, error)
+    Orchestrate(ctx, in OrchestrateInput) (*OrchestrateOutput, error)  // NEW
+}
+```
+
+### Nova's Orchestrate Prompt Design
+
+- **System**: "You are the analytical brain of a Polymarket trading intelligence system"
+- **Inputs**: candidates (top 20), memory (prior rounds), yesterday's result, round info
+- **Self-determination**: Nova decides `analyzing` vs `final` (forced final on last round)
+- **Memory**: observations from each round stored in `nova_session`, recalled in next round
+- **Feedback loop**: yesterday's follow PnL injected as learning signal
+
+### Providers
+
+| Provider | Config |
+|----------|--------|
+| Bedrock | AWS SDK Converse API |
+| Dev API | OpenAI-compatible chat completion |
+| Mock | Deterministic fallback for testing |
 
 ## 8. Runtime
+
+### Configuration
+
+Key env vars:
+- `WORKER_NOVA_ORCHESTRATOR_INTERVAL` — analysis frequency (default `1h`)
+- `WORKER_NOVA_ORCHESTRATOR_START_HOUR` — UTC start hour (default `8`)
+- `WORKER_NOVA_ORCHESTRATOR_END_HOUR` — UTC end hour (default `22`)
+- `NOVA_ENABLED` — enable AI analysis
+- `NOVA_PROVIDER` — `bedrock` or `devapi`
+- `NOVA_API_KEY` — API key for Dev API mode
 
 ### Docker Compose
 
@@ -143,28 +214,3 @@ Amazon Nova is used for generating daily pick recommendations:
 services: [postgres, backend, frontend, nginx]
 ```
 
-Bootstrap:
-1. `docker compose up -d`
-2. Auto-migrate on startup
-3. Verify: `GET /healthz`, `GET /readyz`
-
-### Configuration
-
-Key env vars / config:
-- `WORKER_ENABLED` — enable background workers
-- `WORKER_DAILY_RECOMMENDER_INTERVAL` — pick frequency (default 6h)
-- `NOVA_ENABLED` — enable AI analysis
-- `NOVA_PROVIDER` — `bedrock` or `devapi`
-- `NOVA_API_KEY` — API key for Dev API mode
-
-## 9. Removed Features
-
-The following were removed during the Mar 2026 simplification:
-- ~~Authentication (Google OAuth + JWT)~~
-- ~~Copy-trading (AI agent auto-execution)~~
-- ~~Watchlist + event feed~~
-- ~~Anomaly detection~~
-- ~~Portfolio starter packs~~
-- ~~Share landing pages~~
-- ~~Wallet decision cards~~
-- ~~AI batch analysis worker~~

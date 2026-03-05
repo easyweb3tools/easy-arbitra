@@ -143,3 +143,23 @@ export type DailyPick = {
   result_updated_at?: string;
   created_at: string;
 };
+
+// ── Nova Session (thinking timeline) ──
+
+export type NovaSession = {
+  id: number;
+  session_date: string;
+  round: number;
+  phase: "analyzing" | "final" | "verified";
+  candidates_json: Record<string, unknown>;
+  observations_json: Record<string, unknown>;
+  decision_json: Record<string, unknown>;
+  nl_summary: string;
+  nl_summary_zh: string;
+  picked_wallet_id?: number;
+  model_id: string;
+  input_tokens: number;
+  output_tokens: number;
+  latency_ms: number;
+  created_at: string;
+};

@@ -73,6 +73,7 @@ func main() {
 			&model.IngestCursor{},
 			&model.IngestRun{},
 			&model.DailyPick{},
+			&model.NovaSession{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
@@ -86,6 +87,7 @@ func main() {
 	scoreRepo := repository.NewScoreRepository(db)
 	aiReportRepo := repository.NewAIReportRepository(db)
 	dailyPickRepo := repository.NewDailyPickRepository(db)
+	sessionRepo := repository.NewNovaSessionRepository(db)
 	ingestCursorRepo := repository.NewIngestCursorRepository(db)
 
 	infoEdgeService := service.NewInfoEdgeService(tradeRepo)
@@ -97,7 +99,7 @@ func main() {
 
 	h := handler.New(
 		walletService, marketService, statsService,
-		dailyPickRepo, walletRepo,
+		dailyPickRepo, walletRepo, sessionRepo,
 		func(c *gin.Context) error {
 			return sqlDB.PingContext(c.Request.Context())
 		},
@@ -127,7 +129,7 @@ func main() {
 			{Syncer: worker.NewTradeBackfillSyncer(dataClient, walletRepo, marketRepo, tokenRepo, tradeRepo, cfg.Worker.BackfillWalletsPerSync, cfg.Worker.BackfillPagesPerWallet, cfg.Worker.BackfillPageSize, cfg.Worker.BackfillConcurrency, cfg.Worker.BackfillTargetMinTrades), Interval: cfg.Worker.TradeBackfillSyncerInterval},
 			{Syncer: worker.NewFeatureBuilder(featureRepo), Interval: cfg.Worker.FeatureBuilderInterval},
 			{Syncer: worker.NewScoreCalculator(walletRepo, classifier), Interval: cfg.Worker.ScoreCalculatorInterval},
-			{Syncer: worker.NewDailyRecommender(dailyPickRepo, scoreRepo, tradeRepo, walletRepo, analyzer), Interval: cfg.Worker.DailyRecommenderInterval},
+			{Syncer: worker.NewNovaOrchestrator(sessionRepo, dailyPickRepo, scoreRepo, tradeRepo, walletRepo, analyzer, cfg.Worker.NovaOrchestratorStartHour, cfg.Worker.NovaOrchestratorEndHour), Interval: cfg.Worker.NovaOrchestratorInterval},
 		}
 		mgr := worker.NewManager(lg, jobs...)
 		mgr.Start(ctx, cfg.Worker.RunOnStartup)
