@@ -222,8 +222,8 @@ type TraderStats struct {
 	TradeCount   int64     `gorm:"column:trade_count;not null;default:0;index:idx_trader_stats_trade_count,sort:desc" json:"trade_count"`
 	TradingPnL   float64   `gorm:"column:trading_pnl;type:numeric(20,6);not null;default:0" json:"trading_pnl"`
 	MakerRebates float64   `gorm:"column:maker_rebates;type:numeric(20,6);not null;default:0" json:"maker_rebates"`
-	RealizedPnL  float64   `gorm:"column:realized_pnl;type:numeric(20,6);generated always as (trading_pnl + maker_rebates) stored;index:idx_trader_stats_realized_pnl,sort:desc" json:"realized_pnl"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
+	RealizedPnL  float64   `gorm:"column:realized_pnl;type:numeric(20,6);not null;default:0;index:idx_trader_stats_realized_pnl,sort:desc" json:"realized_pnl"`
+	UpdatedAt    time.Time `gorm:"column:updated_at;not null;autoUpdateTime" json:"updated_at"`
 }
 
 func (TraderStats) TableName() string { return "trader_stats" }

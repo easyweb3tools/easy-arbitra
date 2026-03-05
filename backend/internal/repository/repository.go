@@ -1157,12 +1157,13 @@ func NewTraderStatsRepository(db *gorm.DB) *TraderStatsRepository {
 // RefreshIncremental updates trader_stats with trades since lastSyncTime
 func (r *TraderStatsRepository) RefreshIncremental(ctx context.Context, lastSyncTime time.Time) error {
 	query := `
-INSERT INTO trader_stats (wallet_id, trade_count, trading_pnl, maker_rebates, updated_at)
+INSERT INTO trader_stats (wallet_id, trade_count, trading_pnl, maker_rebates, realized_pnl, updated_at)
 SELECT
     wallet_id,
     SUM(trade_count)    AS trade_count,
     SUM(trading_pnl)    AS trading_pnl,
     SUM(maker_rebates)  AS maker_rebates,
+    SUM(trading_pnl) + SUM(maker_rebates) AS realized_pnl,
     NOW()               AS updated_at
 FROM (
     SELECT
@@ -1196,6 +1197,7 @@ ON CONFLICT (wallet_id) DO UPDATE SET
     trade_count   = trader_stats.trade_count   + EXCLUDED.trade_count,
     trading_pnl   = trader_stats.trading_pnl   + EXCLUDED.trading_pnl,
     maker_rebates = trader_stats.maker_rebates + EXCLUDED.maker_rebates,
+    realized_pnl  = trader_stats.realized_pnl  + EXCLUDED.realized_pnl,
     updated_at    = NOW()`
 
 	return r.db.WithContext(ctx).Exec(query, lastSyncTime, lastSyncTime).Error
@@ -1210,12 +1212,13 @@ func (r *TraderStatsRepository) RefreshFull(ctx context.Context) error {
 
 	// Then, rebuild from trade_fill
 	query := `
-INSERT INTO trader_stats (wallet_id, trade_count, trading_pnl, maker_rebates, updated_at)
+INSERT INTO trader_stats (wallet_id, trade_count, trading_pnl, maker_rebates, realized_pnl, updated_at)
 SELECT
     wallet_id,
     SUM(trade_count)    AS trade_count,
     SUM(trading_pnl)    AS trading_pnl,
     SUM(maker_rebates)  AS maker_rebates,
+    SUM(trading_pnl) + SUM(maker_rebates) AS realized_pnl,
     NOW()               AS updated_at
 FROM (
     SELECT

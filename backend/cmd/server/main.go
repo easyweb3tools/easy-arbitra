@@ -75,6 +75,7 @@ func main() {
 			&model.DailyPick{},
 			&model.NovaSession{},
 			&model.NovaLearningLog{},
+			&model.TraderStats{},
 		); err != nil {
 			log.Fatalf("auto migrate: %v", err)
 		}
