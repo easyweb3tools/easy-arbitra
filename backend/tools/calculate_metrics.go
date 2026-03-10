@@ -36,8 +36,12 @@ func CalculateStyleMetrics() func(ctx context.Context, request mcp.CallToolReque
 			return mcp.NewToolResultError("trades_json parameter is required"), nil
 		}
 
+		// Accept both the full FetchTradesResult object and a plain []EnrichedTrade array
 		var trades []polymarket.EnrichedTrade
-		if err := json.Unmarshal([]byte(tradesJSON), &trades); err != nil {
+		var wrapped FetchTradesResult
+		if err := json.Unmarshal([]byte(tradesJSON), &wrapped); err == nil && wrapped.Wallet != "" {
+			trades = wrapped.Trades
+		} else if err := json.Unmarshal([]byte(tradesJSON), &trades); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to parse trades_json: %v", err)), nil
 		}
 
