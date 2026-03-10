@@ -8,12 +8,12 @@ frontend/out
 # backend
 backend/bin
 backend/tmp
+backend/server
 
 # env
 .env
 .env.local
+frontend/.env.local
 
 # logs
 *.log
-docs/*
-backend/server
