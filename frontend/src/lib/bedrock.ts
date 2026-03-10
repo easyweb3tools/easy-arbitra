@@ -5,12 +5,14 @@ import {
   type ContentBlock,
   type ToolResultContentBlock,
 } from "@aws-sdk/client-bedrock-runtime";
+import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 import { callMCPTool } from "./mcp-bridge";
 import { toolConfig } from "./tool-definitions";
 import type { DecisionStep, ReportPayload, AnalyzeResponse } from "./types";
 
 const client = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || "us-east-1",
+  requestHandler: new FetchHttpHandler(),
 });
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID || "us.amazon.nova-lite-v1:0";
