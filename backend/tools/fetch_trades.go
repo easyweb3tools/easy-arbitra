@@ -26,38 +26,49 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 			return mcp.NewToolResultError("wallet parameter is required"), nil
 		}
 
-		// Step 1: Get NBA tag ID from sports metadata
+		// Parse optional sport param (default: nba)
+		sport := "nba"
+		if s, ok := args["sport"].(string); ok && s != "" {
+			sport = strings.ToLower(s)
+		}
+
+		// Parse optional limit param (default: 500)
+		tradeLimit := 500
+		if l, ok := args["limit"].(float64); ok && l > 0 {
+			tradeLimit = int(l)
+		}
+
+		// Step 1: Get sport tag ID from sports metadata
 		tags, err := client.GetSportsTags()
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to get sports tags: %v", err)), nil
 		}
 
-		var nbaTagID string
+		var sportTagID string
 		for _, tag := range tags {
 			slug := strings.ToLower(tag.Slug)
 			label := strings.ToLower(tag.Label)
-			if strings.Contains(slug, "nba") || strings.Contains(label, "nba") {
-				nbaTagID = tag.ID
+			if strings.Contains(slug, sport) || strings.Contains(label, sport) {
+				sportTagID = tag.ID
 				break
 			}
 		}
 
-		if nbaTagID == "" {
-			// Fallback: try with known slugs
-			nbaTagID = "nba"
+		if sportTagID == "" {
+			sportTagID = sport
 		}
 
-		// Step 2: Get NBA events (paginate to cover historical data)
-		nbaConditionIDs := make(map[string]bool)
+		// Step 2: Get sport events (paginate to cover historical data)
+		sportConditionIDs := make(map[string]bool)
 		for offset := 0; ; offset += 100 {
-			events, err := client.GetEvents(nbaTagID, 100, offset)
+			events, err := client.GetEvents(sportTagID, 100, offset)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get NBA events: %v", err)), nil
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get %s events: %v", sport, err)), nil
 			}
 			for _, event := range events {
 				for _, market := range event.Markets {
 					if market.ConditionID != "" {
-						nbaConditionIDs[market.ConditionID] = true
+						sportConditionIDs[market.ConditionID] = true
 					}
 				}
 			}
@@ -68,19 +79,19 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 		}
 
 		// Step 3: Get user trades
-		trades, err := client.GetTrades(wallet, 500, 0)
+		trades, err := client.GetTrades(wallet, tradeLimit, 0)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to get trades: %v", err)), nil
 		}
 
-		// Step 4: Filter to NBA trades
-		// First pass: match against known NBA conditionIDs
-		var nbaTrades []polymarket.Trade
+		// Step 4: Filter to sport trades
+		// First pass: match against known sport conditionIDs
+		var sportTrades []polymarket.Trade
 		var unmatchedConditionIDs []string
 		unmatchedSet := make(map[string]bool)
 		for _, trade := range trades {
-			if nbaConditionIDs[trade.ConditionID] {
-				nbaTrades = append(nbaTrades, trade)
+			if sportConditionIDs[trade.ConditionID] {
+				sportTrades = append(sportTrades, trade)
 			} else if !unmatchedSet[trade.ConditionID] {
 				unmatchedSet[trade.ConditionID] = true
 				unmatchedConditionIDs = append(unmatchedConditionIDs, trade.ConditionID)
@@ -88,7 +99,7 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 		}
 
 		// Second pass: check unmatched trades against market metadata
-		// to catch NBA markets not returned by the events endpoint
+		// to catch sport markets not returned by the events endpoint
 		for i := 0; i < len(unmatchedConditionIDs); i += 20 {
 			end := i + 20
 			if end > len(unmatchedConditionIDs) {
@@ -100,8 +111,8 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 			}
 			for _, m := range markets {
 				q := strings.ToLower(m.Question)
-				if strings.Contains(q, "nba") || strings.Contains(q, "basketball") {
-					nbaConditionIDs[m.ConditionID] = true
+				if strings.Contains(q, sport) || (sport == "nba" && strings.Contains(q, "basketball")) {
+					sportConditionIDs[m.ConditionID] = true
 				}
 			}
 			if end < len(unmatchedConditionIDs) {
@@ -109,17 +120,17 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 			}
 		}
 
-		// Re-filter with expanded NBA set
-		nbaTrades = nil
+		// Re-filter with expanded sport set
+		sportTrades = nil
 		for _, trade := range trades {
-			if nbaConditionIDs[trade.ConditionID] {
-				nbaTrades = append(nbaTrades, trade)
+			if sportConditionIDs[trade.ConditionID] {
+				sportTrades = append(sportTrades, trade)
 			}
 		}
 
 		// Step 5: Get market metadata for enrichment
 		conditionIDSet := make(map[string]bool)
-		for _, t := range nbaTrades {
+		for _, t := range sportTrades {
 			conditionIDSet[t.ConditionID] = true
 		}
 		conditionIDList := make([]string, 0, len(conditionIDSet))
@@ -149,8 +160,8 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 		}
 
 		// Step 6: Build enriched trades
-		enriched := make([]polymarket.EnrichedTrade, 0, len(nbaTrades))
-		for _, t := range nbaTrades {
+		enriched := make([]polymarket.EnrichedTrade, 0, len(sportTrades))
+		for _, t := range sportTrades {
 			et := polymarket.EnrichedTrade{
 				ConditionID:     t.ConditionID,
 				MarketQuestion:  "",
@@ -172,7 +183,7 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 
 		result := FetchTradesResult{
 			Wallet:      wallet,
-			Sport:       "nba",
+			Sport:       sport,
 			TotalTrades: len(enriched),
 			Trades:      enriched,
 		}
