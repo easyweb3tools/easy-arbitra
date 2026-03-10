@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend
 
-## Getting Started
+This frontend is a Next.js 16 application that runs on Cloudflare Workers. It provides the user-facing wallet analysis flow, orchestrates Bedrock from the `/api/analyze` route, and renders the final trader profile dashboard.
 
-First, run the development server:
+## Responsibilities
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Collect wallet input from the user
+- Validate Ethereum addresses and Polymarket profile URLs
+- Call Amazon Bedrock Converse from the server route
+- Forward tool calls to the backend MCP bridge
+- Render the analysis result as a dashboard with:
+  - decision log
+  - wallet summary card
+  - trading style radar chart
+  - final natural-language explanation
+
+## App Structure
+
+```text
+src/
+├── app/
+│   ├── api/analyze/route.ts   Server-side Bedrock orchestration
+│   ├── dashboard/page.tsx     Analysis result screen
+│   └── page.tsx               Landing and input flow
+├── components/                UI building blocks and report views
+└── lib/                       Bedrock client, MCP bridge, types, tool definitions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Runtime Configuration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The frontend expects these values at runtime:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `AWS_REGION`
+- `BEDROCK_MODEL_ID`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `MCP_BRIDGE_URL`
 
-## Learn More
+`MCP_BRIDGE_URL` should be the base URL of the Go backend, for example:
 
-To learn more about Next.js, take a look at the following resources:
+```text
+http://localhost:8082
+https://api.example.com
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Local Development
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+Open `http://localhost:3000`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Cloudflare Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This repo is configured to deploy the frontend as a Cloudflare Worker using OpenNext.
+
+Relevant files:
+
+- `open-next.config.ts`
+- `wrangler.jsonc`
+- `.github/workflows/frontend-cloudflare.yml`
+
+GitHub Actions is the source of truth for Worker configuration:
+
+- GitHub Variables become Cloudflare Worker `vars`
+- GitHub Secrets are pushed as Cloudflare Worker secrets during deployment
+
+## Feature Summary
+
+- Wallet input with client-side validation
+- Bedrock-powered explanation flow
+- Tool-driven data pipeline instead of direct LLM hallucination
+- Streaming-friendly architecture for progressive analysis updates
+- Responsive dashboard for trader style breakdown
