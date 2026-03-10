@@ -1,48 +1,97 @@
-# Easy Arbitra — Polymarket Smart Wallet Analyzer
+# Easy Arbitra
 
-> **An AI-powered prediction market intelligence platform that tracks profitable wallets on Polymarket and explains *how* they make money — powered by Amazon Nova AI.**
+Easy Arbitra is an AI-assisted Polymarket wallet analyzer focused on NBA trading behavior. A user submits a wallet address or Polymarket profile URL, the system resolves the identity, fetches historical NBA trades, computes deterministic style metrics, and asks Amazon Bedrock to explain the trader's behavior in plain English.
 
-[![Amazon Nova AI Hackathon](https://img.shields.io/badge/Hackathon-Amazon%20Nova%20AI-orange)](https://amazon-nova.devpost.com/)
-[![Track](https://img.shields.io/badge/Track-Agentic%20AI-blue)]()
-[![Built with](https://img.shields.io/badge/Built%20with-Go%20%7C%20Next.js%20%7C%20PostgreSQL-green)]()
+## Architecture
 
----
+The project is split into two services:
 
-## Inspiration
+- `frontend/`: a Next.js 16 application deployed to Cloudflare Workers
+- `backend/`: a Go service that exposes MCP tools and a REST bridge for Polymarket data access
 
+High-level request flow:
 
----
+1. The user submits a wallet or profile URL in the frontend.
+2. The frontend calls its own `/api/analyze` route.
+3. The route uses Amazon Bedrock Converse with tool calling.
+4. Bedrock invokes the backend MCP bridge in a fixed 4-step sequence.
+5. The backend resolves the wallet, fetches NBA trades, computes metrics, and returns a structured report payload.
+6. The frontend renders the decision log, wallet card, radar chart, and natural-language explanation.
 
-## What It Does
+## Feature List
 
+- Wallet input supports both raw Ethereum addresses and Polymarket profile URLs
+- Polymarket public profile lookup for display name and avatar enrichment
+- NBA-only trade filtering using Polymarket sports tags, events, and market metadata
+- Deterministic trading metrics:
+  - entry timing
+  - size ratio versus market volume
+  - conviction based on average buy price
+- LLM-generated style explanation powered by Amazon Bedrock
+- Structured UI output including a decision log, summary card, and radar chart
+- Cloudflare Worker deployment for the frontend
+- GitHub Container Registry build pipeline for the backend image
 
----
+## Repository Layout
 
-## How We Built It
+```text
+.
+├── backend/              Go MCP server and REST bridge
+├── frontend/             Next.js app and Cloudflare Worker config
+└── .github/workflows/    CI/CD for frontend deploy and backend image builds
+```
 
+## Core Backend Tool Sequence
 
----
+The Bedrock prompt enforces a four-tool pipeline:
 
-## Challenges We Ran Into
+1. `resolve_wallet_target`
+2. `fetch_sports_trades`
+3. `calculate_style_metrics`
+4. `build_report_payload`
 
+This keeps the LLM orchestration constrained while leaving the market data and metric calculations deterministic.
 
----
+## Local Development
 
-## Accomplishments That We're Proud Of
+Backend:
 
+```bash
+cd backend
+go run .
+```
 
----
+Frontend:
 
-## What We Learned
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
+The frontend expects these runtime values:
 
----
+- `AWS_REGION`
+- `BEDROCK_MODEL_ID`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `MCP_BRIDGE_URL`
 
-## What's Next
+For local development, `MCP_BRIDGE_URL` should usually point to `http://localhost:8082`.
 
+## Deployment
 
----
+- Frontend: GitHub Actions builds and deploys the Next.js app to Cloudflare Workers
+- Backend: GitHub Actions builds and publishes a Docker image to `ghcr.io`
+- Runtime topology: Cloudflare Worker calls the backend running on your EC2 instance
 
-## Built With
+## Tech Stack
 
-`amazon-nova` `amazon-bedrock` `nova-2-lite` `nova-2-sonic` `nova-multimodal-embeddings` `nova-act` `go` `gin` `gorm` `postgresql` `pgvector` `next.js` `tailwindcss` `typescript` `docker` `polymarket` `prediction-markets` `blockchain-analytics` `agentic-ai`
+- Next.js 16
+- React 19
+- Tailwind CSS 4
+- Go 1.23
+- Amazon Bedrock
+- Cloudflare Workers
+- GitHub Actions
+- GitHub Container Registry
