@@ -16,3 +16,4 @@ backend/tmp
 # logs
 *.log
 docs/*
+backend/server
