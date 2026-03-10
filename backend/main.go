@@ -60,10 +60,16 @@ func registerTools(s *server.MCPServer, client *polymarket.Client) {
 
 	// 2. fetch_sports_trades
 	s.AddTool(mcp.NewTool("fetch_sports_trades",
-		mcp.WithDescription("Fetch NBA sports trades for a given wallet address from Polymarket. Returns enriched trade data with market metadata."),
+		mcp.WithDescription("Fetch sports trades for a given wallet address from Polymarket. Returns enriched trade data with market metadata."),
 		mcp.WithString("wallet",
 			mcp.Description("Standardized wallet address (0x...)"),
 			mcp.Required(),
+		),
+		mcp.WithString("sport",
+			mcp.Description("Sport to filter trades by (e.g., 'nba')"),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of trades to fetch (default 500)"),
 		),
 	), tools.FetchSportsTrades(client))
 

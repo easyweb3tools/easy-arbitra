@@ -26,7 +26,7 @@ export const toolConfig = {
       toolSpec: {
         name: "fetch_sports_trades",
         description:
-          "Fetch NBA sports trades for a given wallet address from Polymarket. Returns enriched trade data with market metadata.",
+          "Fetch sports trades for a given wallet address from Polymarket. Returns enriched trade data with market metadata.",
         inputSchema: {
           json: {
             type: "object",
@@ -34,6 +34,14 @@ export const toolConfig = {
               wallet: {
                 type: "string",
                 description: "Standardized wallet address (0x...)",
+              },
+              sport: {
+                type: "string",
+                description: "Sport to filter trades by (e.g., 'nba')",
+              },
+              limit: {
+                type: "number",
+                description: "Maximum number of trades to fetch (default 500)",
               },
             },
             required: ["wallet"],
