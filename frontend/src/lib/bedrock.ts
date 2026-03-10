@@ -24,9 +24,10 @@ You MUST follow this exact 4-step tool calling sequence:
 4. Call build_report_payload with wallet info and metrics to generate the final report
 
 After completing all 4 tool calls, provide a natural language explanation of the wallet's trading style. Your explanation should:
-- Reference specific metric values (entry timing hours, position size %, ROI %)
+- Reference specific metric values (entry timing hours, position size %, conviction score)
 - Describe the trading pattern in plain English
-- Assign a style characterization (e.g., "Early Whale", "Quick Scout", "Sharp Shooter")
+- Conviction measures average buy price: high (>0.7) = bets on favorites, low (<0.4) = contrarian/underdog hunter
+- Assign a style characterization (e.g., "Early Whale", "Quick Scout", "Favorite Backer", "Contrarian Hunter")
 - Be 2-3 paragraphs long
 
 If the wallet has zero NBA trades, explain that no NBA trading activity was found and suggest the user try a different wallet.
@@ -36,9 +37,18 @@ IMPORTANT: Always call tools in the exact order above. Pass data between steps:
 - Step 3 uses wallet from Step 1 and trades array from Step 2
 - Step 4 uses wallet_info (full JSON from Step 1), metrics_json (full JSON from Step 3)`;
 
-export async function analyzeWallet(
-  walletInput: string
-): Promise<AnalyzeResponse> {
+// SSE event types
+export type StreamEvent =
+  | { type: "step"; data: DecisionStep }
+  | { type: "report"; data: ReportPayload }
+  | { type: "explanation"; data: string }
+  | { type: "done"; data: AnalyzeResponse }
+  | { type: "error"; data: string };
+
+export async function analyzeWalletStream(
+  walletInput: string,
+  onEvent: (event: StreamEvent) => void
+): Promise<void> {
   const decisionLog: DecisionStep[] = [];
   let reportPayload: ReportPayload | null = null;
   let explanation = "";
@@ -83,7 +93,6 @@ export async function analyzeWallet(
       break;
     }
 
-    // Add assistant message to conversation
     messages.push(output.message);
 
     const toolUseBlocks: ContentBlock[] = [];
@@ -99,12 +108,10 @@ export async function analyzeWallet(
       }
     }
 
-    // If no tool calls, we're done
     if (toolUseBlocks.length === 0) {
       break;
     }
 
-    // Process each tool call
     const toolResults: ContentBlock[] = [];
 
     for (const block of toolUseBlocks) {
@@ -130,18 +137,23 @@ export async function analyzeWallet(
         resultSummary = `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
       }
 
-      decisionLog.push({
+      const step: DecisionStep = {
         step: stepNum,
         tool: name!,
         reasoning: getToolReasoning(name!),
         timestamp,
         result_summary: resultSummary,
-      });
+      };
+      decisionLog.push(step);
 
-      // Try to extract report payload from build_report_payload result
+      // Stream the step immediately
+      onEvent({ type: "step", data: step });
+
+      // Extract report payload
       if (name === "build_report_payload") {
         try {
           reportPayload = JSON.parse(resultText) as ReportPayload;
+          onEvent({ type: "report", data: reportPayload });
         } catch {
           // Not valid JSON, skip
         }
@@ -156,19 +168,22 @@ export async function analyzeWallet(
       });
     }
 
-    // Add tool results as user message
     messages.push({
       role: "user",
       content: toolResults,
     });
 
-    // Check stop reason
     if (response.stopReason === "end_turn" && hasText) {
       break;
     }
   }
 
-  // Fallback report payload if none was extracted
+  // Stream the explanation
+  if (explanation) {
+    onEvent({ type: "explanation", data: explanation });
+  }
+
+  // Fallback report payload
   if (!reportPayload) {
     reportPayload = {
       wallet_card: {
@@ -178,19 +193,24 @@ export async function analyzeWallet(
         sport: "NBA",
         total_trades: 0,
       },
-      radar_chart: { entry_timing: 0, size_ratio: 0, roi: 0 },
+      radar_chart: { entry_timing: 0, size_ratio: 0, conviction: 0 },
       report: {
         style_label: "Unknown",
         summary_context: "No data available",
       },
     };
+    onEvent({ type: "report", data: reportPayload });
   }
 
-  return {
-    decisionLog,
-    reportPayload,
-    explanation: explanation || "Analysis complete. See the dashboard for results.",
-  };
+  // Final done event with complete data
+  onEvent({
+    type: "done",
+    data: {
+      decisionLog,
+      reportPayload,
+      explanation: explanation || "Analysis complete. See the dashboard for results.",
+    },
+  });
 }
 
 function getToolReasoning(toolName: string): string {
@@ -200,7 +220,7 @@ function getToolReasoning(toolName: string): string {
     case "fetch_sports_trades":
       return "Fetching NBA-specific trade history from Polymarket";
     case "calculate_style_metrics":
-      return "Computing entry timing, position sizing, and ROI metrics";
+      return "Computing entry timing, position sizing, and conviction metrics";
     case "build_report_payload":
       return "Building structured report with radar chart data and style classification";
     default:
@@ -217,7 +237,7 @@ function summarizeResult(toolName: string, resultText: string): string {
       case "fetch_sports_trades":
         return `Found ${data.total_trades} NBA trades`;
       case "calculate_style_metrics":
-        return `Metrics: timing=${data.metrics?.entry_timing_hours}h, size=${data.metrics?.size_ratio_pct}%, ROI=${data.metrics?.roi}%`;
+        return `Metrics: timing=${data.metrics?.entry_timing_hours}h, size=${data.metrics?.size_ratio_pct}%, conviction=${data.metrics?.conviction}`;
       case "build_report_payload":
         return `Style: ${data.report?.style_label}`;
       default:

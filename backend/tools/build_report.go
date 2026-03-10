@@ -26,7 +26,7 @@ type WalletCard struct {
 type RadarChart struct {
 	EntryTiming float64 `json:"entry_timing"`
 	SizeRatio   float64 `json:"size_ratio"`
-	ROI         float64 `json:"roi"`
+	Conviction  float64 `json:"conviction"`
 }
 
 type Report struct {
@@ -64,17 +64,18 @@ func BuildReportPayload() func(ctx context.Context, request mcp.CallToolRequest)
 		// Normalize radar chart values (0-1)
 		entryTiming := math.Max(0, 1-metricsData.Metrics.EntryTimingHours/24)
 		sizeRatio := math.Min(1, metricsData.Metrics.SizeRatioPct/10)
-		roi := math.Min(1, math.Max(0, (metricsData.Metrics.ROI+50)/100))
+		// Conviction is already 0-1 (average buy price)
+		conviction := metricsData.Metrics.Conviction
 
 		// Determine style label
-		styleLabel := determineStyleLabel(entryTiming, sizeRatio, roi)
+		styleLabel := determineStyleLabel(entryTiming, sizeRatio, conviction)
 
 		// Build summary context
 		summaryContext := fmt.Sprintf(
-			"Entry timing: %.1f hours avg | Position size: %.4f%% of market volume | ROI: %.2f%% | Sample: %d trades",
+			"Entry timing: %.1f hours avg | Position size: %.4f%% of market volume | Conviction: %.2f (avg buy price) | Sample: %d trades",
 			metricsData.Metrics.EntryTimingHours,
 			metricsData.Metrics.SizeRatioPct,
-			metricsData.Metrics.ROI,
+			metricsData.Metrics.Conviction,
 			metricsData.SampleSize,
 		)
 
@@ -93,7 +94,7 @@ func BuildReportPayload() func(ctx context.Context, request mcp.CallToolRequest)
 			RadarChart: RadarChart{
 				EntryTiming: math.Round(entryTiming*100) / 100,
 				SizeRatio:   math.Round(sizeRatio*100) / 100,
-				ROI:         math.Round(roi*100) / 100,
+				Conviction:  math.Round(conviction*100) / 100,
 			},
 			Report: Report{
 				StyleLabel:     styleLabel,
@@ -106,7 +107,7 @@ func BuildReportPayload() func(ctx context.Context, request mcp.CallToolRequest)
 	}
 }
 
-func determineStyleLabel(entryTiming, sizeRatio, roi float64) string {
+func determineStyleLabel(entryTiming, sizeRatio, conviction float64) string {
 	if entryTiming > 0.7 && sizeRatio > 0.5 {
 		return "Early Whale"
 	}
@@ -116,8 +117,11 @@ func determineStyleLabel(entryTiming, sizeRatio, roi float64) string {
 	if entryTiming <= 0.3 && sizeRatio > 0.5 {
 		return "Late Whale"
 	}
-	if roi > 0.6 {
-		return "Sharp Shooter"
+	if conviction > 0.75 {
+		return "Favorite Backer"
+	}
+	if conviction < 0.35 && conviction > 0 {
+		return "Contrarian Hunter"
 	}
 	if sizeRatio > 0.7 {
 		return "Heavy Hitter"

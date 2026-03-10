@@ -45,7 +45,7 @@ export const toolConfig = {
       toolSpec: {
         name: "calculate_style_metrics",
         description:
-          "Calculate deterministic trading style metrics (entry timing, position size ratio, ROI) from enriched trade data.",
+          "Calculate deterministic trading style metrics (entry timing, position size ratio, conviction) from enriched trade data.",
         inputSchema: {
           json: {
             type: "object",

@@ -11,7 +11,7 @@ export interface WalletCard {
 export interface RadarChartData {
   entry_timing: number;
   size_ratio: number;
-  roi: number;
+  conviction: number;
 }
 
 export interface ReportData {

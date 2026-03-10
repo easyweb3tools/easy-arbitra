@@ -69,7 +69,7 @@ func registerTools(s *server.MCPServer, client *polymarket.Client) {
 
 	// 3. calculate_style_metrics
 	s.AddTool(mcp.NewTool("calculate_style_metrics",
-		mcp.WithDescription("Calculate deterministic trading style metrics (entry timing, position size ratio, ROI) from enriched trade data."),
+		mcp.WithDescription("Calculate deterministic trading style metrics (entry timing, position size ratio, conviction) from enriched trade data."),
 		mcp.WithString("wallet",
 			mcp.Description("Wallet address"),
 			mcp.Required(),

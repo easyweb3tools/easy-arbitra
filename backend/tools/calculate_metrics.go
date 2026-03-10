@@ -20,7 +20,7 @@ type MetricsResult struct {
 type StyleMetrics struct {
 	EntryTimingHours float64 `json:"entry_timing_hours"`
 	SizeRatioPct     float64 `json:"size_ratio_pct"`
-	ROI              float64 `json:"roi"`
+	Conviction       float64 `json:"conviction"`
 }
 
 func CalculateStyleMetrics() func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -56,7 +56,7 @@ func CalculateStyleMetrics() func(ctx context.Context, request mcp.CallToolReque
 			Metrics: StyleMetrics{
 				EntryTimingHours: metrics.EntryTimingHours(trades),
 				SizeRatioPct:     metrics.SizeRatioPct(trades),
-				ROI:              metrics.ROI(trades),
+				Conviction:       metrics.Conviction(trades),
 			},
 			SampleSize: len(trades),
 		}

@@ -13,19 +13,22 @@ export function WalletInput({ onSubmit, isLoading }: WalletInputProps) {
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
 
+  const ETH_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
+  const PROFILE_URL = /polymarket\.com\/profile\/(0x[a-fA-F0-9]{40})/;
+
   const validate = (input: string): boolean => {
-    if (!input.trim()) {
-      setError("Please enter a wallet address or Polymarket URL");
+    const trimmed = input.trim();
+    if (!trimmed) {
+      setError("Please enter a wallet address or Polymarket profile URL");
       return false;
     }
-    if (
-      input.startsWith("0x") ||
-      input.includes("polymarket.com")
-    ) {
+    if (ETH_ADDRESS.test(trimmed) || PROFILE_URL.test(trimmed)) {
       setError("");
       return true;
     }
-    setError("Must be a 0x address or Polymarket profile URL");
+    setError(
+      "Must be an Ethereum address (0x followed by 40 hex chars) or a Polymarket profile URL (polymarket.com/profile/0x...)"
+    );
     return false;
   };
 

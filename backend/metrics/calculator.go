@@ -53,21 +53,20 @@ func SizeRatioPct(trades []polymarket.EnrichedTrade) float64 {
 	return math.Round(totalRatio/float64(validCount)*10000) / 10000
 }
 
-// ROI calculates the return on investment from buy/sell trades.
-func ROI(trades []polymarket.EnrichedTrade) float64 {
-	var sumBuy, sumSell float64
+// Conviction calculates the average BUY price (0-1 scale).
+// High conviction (>0.7) = bets on favorites, low conviction (<0.4) = contrarian/underdog bets.
+// This is directly measurable from trade data without requiring settlement info.
+func Conviction(trades []polymarket.EnrichedTrade) float64 {
+	var totalPrice float64
+	var buyCount int
 	for _, t := range trades {
-		amount := t.Size * t.Price
-		switch t.Side {
-		case "BUY":
-			sumBuy += amount
-		case "SELL":
-			sumSell += amount
+		if t.Side == "BUY" && t.Price > 0 && t.Price <= 1 {
+			totalPrice += t.Price
+			buyCount++
 		}
 	}
-	if sumBuy == 0 {
+	if buyCount == 0 {
 		return 0
 	}
-	roi := (sumSell - sumBuy) / sumBuy * 100
-	return math.Round(roi*100) / 100
+	return math.Round(totalPrice/float64(buyCount)*100) / 100
 }

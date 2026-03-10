@@ -33,10 +33,10 @@ Frontend requires `frontend/.env.local` (see `.env.local.example`):
 **SportStyle AI Explainer** — user inputs a Polymarket wallet address, Amazon Nova orchestrates 4 MCP tools via Bedrock Converse API, outputs NBA trading style analysis (radar chart + natural language).
 
 ```
-Browser → Next.js /api/analyze (route.ts)
+Browser → Next.js /api/analyze (route.ts, SSE stream)
   → Bedrock Converse loop (bedrock.ts) with toolConfig
   → Nova returns tool_use → MCP Bridge (mcp-bridge.ts) → Go REST :8082
-  → Tool result returns to Nova → loops 4 times
+  → Tool result returns to Nova → loops 4 times → each step streamed to browser
   → Nova returns end_turn + explanation
   → Frontend renders Dashboard
 ```
@@ -46,8 +46,8 @@ Browser → Next.js /api/analyze (route.ts)
 ### Tool Calling Sequence (strict order, enforced by system prompt)
 
 1. **resolve_wallet_target** — parse 0x address or Polymarket URL, fetch profile
-2. **fetch_sports_trades** — get NBA tag → events → conditionIDs → filter user trades → enrich with market metadata
-3. **calculate_style_metrics** — compute entry_timing_hours, size_ratio_pct, ROI from enriched trades
+2. **fetch_sports_trades** — get NBA tag → paginate all events (including closed/historical) → conditionIDs → filter user trades → fallback: check unmatched trades against market questions for NBA keywords → enrich with market metadata
+3. **calculate_style_metrics** — compute entry_timing_hours, size_ratio_pct, conviction (avg buy price 0-1) from enriched trades
 4. **build_report_payload** — normalize to 0-1 radar values, assign style label, assemble wallet card + report
 
 Each step passes its output as input to the next via the Bedrock Converse tool loop.
@@ -56,7 +56,8 @@ Each step passes its output as input to the next via the Bedrock Converse tool l
 
 - **mcp-go v0.32.0**: Use `request.GetArguments()` to access tool args (not `request.Params.Arguments` which is typed `any`)
 - **AWS SDK Tool types**: The Bedrock `Tool` type is a tagged union — cast with `as any[]` when building toolConfig
-- **Data between pages**: Analysis results pass via `sessionStorage`, dashboard redirects to `/` if empty
+- **Streaming**: `/api/analyze` uses SSE (Server-Sent Events). Frontend consumes the stream to show tool progress in real-time before navigating to dashboard.
+- **Data between pages**: Final analysis results pass via `sessionStorage`, dashboard redirects to `/` if empty
 - **Polymarket API rate limiting**: 200ms sleep between market metadata batch requests, batches of 20 conditionIDs
 
 ### Backend Structure
@@ -68,19 +69,22 @@ Each step passes its output as input to the next via the Bedrock Converse tool l
 
 ### Frontend Structure
 
-- `src/lib/bedrock.ts` — core orchestration: Bedrock Converse loop with max 10 iterations, decision log capture, report payload extraction
+- `src/lib/bedrock.ts` — core orchestration: Bedrock Converse loop with max 10 iterations, streams `step`/`report`/`explanation`/`done` events via callback
 - `src/lib/mcp-bridge.ts` — HTTP POST to Go REST bridge
 - `src/lib/tool-definitions.ts` — Bedrock toolConfig mirroring MCP tool schemas
 - `src/components/` — `wallet-input`, `decision-log`, `wallet-card`, `radar-chart`, `report-summary`
 
 ## Style Label Classification (build_report.go)
 
+The third metric axis is **conviction** (avg buy price), not ROI. ROI cannot be computed honestly without settlement data.
+
 | Condition | Label |
 |-----------|-------|
 | Early entry + Large position | Early Whale |
 | Early entry + Small position | Quick Scout |
 | Late entry + Large position | Late Whale |
-| High ROI (>60%) | Sharp Shooter |
+| High conviction (>0.75) | Favorite Backer |
+| Low conviction (<0.35) | Contrarian Hunter |
 | Large position (>70%) | Heavy Hitter |
 | Early entry (>50%) | Early Bird |
 | Default | Steady Player |

@@ -18,7 +18,7 @@ export function RadarChart({ data }: RadarChartProps) {
   const chartData = [
     { axis: "Entry Timing", value: data.entry_timing, fullMark: 1 },
     { axis: "Position Size", value: data.size_ratio, fullMark: 1 },
-    { axis: "ROI", value: data.roi, fullMark: 1 },
+    { axis: "Conviction", value: data.conviction, fullMark: 1 },
   ];
 
   return (

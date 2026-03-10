@@ -52,8 +52,9 @@ func (c *Client) GetSportsTags() ([]Tag, error) {
 }
 
 // GetEvents fetches events for a given tag ID with pagination.
+// Does not filter by active/closed status so historical events are included.
 func (c *Client) GetEvents(tagID string, limit, offset int) ([]Event, error) {
-	u := fmt.Sprintf("%s/events?tag=%s&limit=%d&offset=%d&active=true&closed=false",
+	u := fmt.Sprintf("%s/events?tag=%s&limit=%d&offset=%d",
 		c.GammaBase, url.QueryEscape(tagID), limit, offset)
 	resp, err := c.HTTP.Get(u)
 	if err != nil {
