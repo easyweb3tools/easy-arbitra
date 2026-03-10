@@ -25,6 +25,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Derive release version tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
+            echo "value=${GITHUB_REF#refs/heads/release/}" >> "$GITHUB_OUTPUT"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -42,6 +53,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ github.sha }}
+            type=raw,value=${{ steps.version.outputs.value }},enable=${{ steps.version.outputs.enabled }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push backend image
