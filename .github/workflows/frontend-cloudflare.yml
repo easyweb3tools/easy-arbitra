@@ -1,0 +1,85 @@
+name: Deploy Frontend To Cloudflare
+
+on:
+  push:
+    branches:
+      - release/v*
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-cloudflare.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-cloudflare-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
+      MCP_BRIDGE_URL: ${{ vars.MCP_BRIDGE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required Cloudflare secrets
+        run: |
+          test -n "${CLOUDFLARE_ACCOUNT_ID}" || { echo "Missing secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          test -n "${CLOUDFLARE_API_TOKEN}" || { echo "Missing secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "${AWS_REGION}" || { echo "Missing repository variable: AWS_REGION"; exit 1; }
+          test -n "${BEDROCK_MODEL_ID}" || { echo "Missing repository variable: BEDROCK_MODEL_ID"; exit 1; }
+          test -n "${MCP_BRIDGE_URL}" || { echo "Missing repository variable: MCP_BRIDGE_URL"; exit 1; }
+          test -n "${{ secrets.AWS_ACCESS_KEY_ID }}" || { echo "Missing secret: AWS_ACCESS_KEY_ID"; exit 1; }
+          test -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" || { echo "Missing secret: AWS_SECRET_ACCESS_KEY"; exit 1; }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Inject runtime variables into Wrangler config
+        run: |
+          node <<'EOF'
+          const fs = require("fs");
+          const path = "wrangler.jsonc";
+          const config = JSON.parse(fs.readFileSync(path, "utf8"));
+          config.vars = {
+            AWS_REGION: process.env.AWS_REGION,
+            BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID,
+            MCP_BRIDGE_URL: process.env.MCP_BRIDGE_URL
+          };
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
+          EOF
+
+      - name: Build frontend
+        run: npm run cf:build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: frontend
+          wranglerVersion: "4.71.0"
+          command: deploy
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          secrets: |
+            AWS_ACCESS_KEY_ID
+            AWS_SECRET_ACCESS_KEY
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
