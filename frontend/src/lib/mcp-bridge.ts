@@ -7,23 +7,49 @@ export async function callMCPTool(
   args: Record<string, unknown>
 ): Promise<string> {
   const request: ToolCallRequest = { tool: toolName, args };
+  const endpoints = getMcpBridgeEndpoints(MCP_BRIDGE_URL);
 
-  const response = await fetch(`${MCP_BRIDGE_URL}/api/tools/call`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+  let lastError = "";
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
 
-  if (!response.ok) {
-    throw new Error(`MCP bridge error: ${response.status} ${await response.text()}`);
+    if (!response.ok) {
+      lastError = `MCP bridge error: ${response.status} ${await response.text()}`;
+      if (response.status === 404) {
+        continue;
+      }
+      throw new Error(lastError);
+    }
+
+    const result: MCPToolResult = await response.json();
+
+    if (result.isError) {
+      const errorText = result.content?.[0]?.text || "Unknown tool error";
+      throw new Error(errorText);
+    }
+
+    return result.content?.[0]?.text || "";
   }
 
-  const result: MCPToolResult = await response.json();
+  throw new Error(
+    `${lastError} (checked endpoints: ${endpoints.join(", ")})`
+  );
+}
 
-  if (result.isError) {
-    const errorText = result.content?.[0]?.text || "Unknown tool error";
-    throw new Error(errorText);
+function getMcpBridgeEndpoints(baseUrl: string): string[] {
+  const normalized = baseUrl.replace(/\/+$/, "");
+
+  if (normalized.endsWith("/api/tools/call")) {
+    return [normalized];
   }
 
-  return result.content?.[0]?.text || "";
+  if (normalized.endsWith("/api")) {
+    return [`${normalized}/tools/call`, `${normalized}/api/tools/call`];
+  }
+
+  return [`${normalized}/api/tools/call`, `${normalized}/tools/call`];
 }

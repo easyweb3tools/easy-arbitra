@@ -46,6 +46,8 @@ http://localhost:8082
 https://api.example.com
 ```
 
+The frontend tolerates `MCP_BRIDGE_URL` values with or without a trailing `/api`, but the recommended format is the service root URL.
+
 ## Local Development
 
 ```bash
@@ -54,6 +56,8 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+For deployment debugging, the frontend also exposes `GET /api/health`. It returns the Worker-visible `MCP_BRIDGE_URL` and the result of probing the backend health endpoint.
 
 ## Cloudflare Deployment
 
