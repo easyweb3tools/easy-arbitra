@@ -46,6 +46,8 @@ http://localhost:8082
 https://api.example.com
 ```
 
+The frontend tolerates `MCP_BRIDGE_URL` values with or without a trailing `/api`, but the recommended format is the service root URL.
+
 ## Local Development
 
 ```bash
