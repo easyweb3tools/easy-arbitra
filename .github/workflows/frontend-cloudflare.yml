@@ -38,8 +38,7 @@ jobs:
           test -n "${AWS_REGION}" || { echo "Missing repository variable: AWS_REGION"; exit 1; }
           test -n "${BEDROCK_MODEL_ID}" || { echo "Missing repository variable: BEDROCK_MODEL_ID"; exit 1; }
           test -n "${MCP_BRIDGE_URL}" || { echo "Missing repository variable: MCP_BRIDGE_URL"; exit 1; }
-          test -n "${{ secrets.AWS_ACCESS_KEY_ID }}" || { echo "Missing secret: AWS_ACCESS_KEY_ID"; exit 1; }
-          test -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" || { echo "Missing secret: AWS_SECRET_ACCESS_KEY"; exit 1; }
+          test -n "${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}" || { echo "Missing secret: AWS_BEARER_TOKEN_BEDROCK"; exit 1; }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -78,8 +77,6 @@ jobs:
           command: deploy
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           secrets: |
-            AWS_ACCESS_KEY_ID
-            AWS_SECRET_ACCESS_KEY
+            AWS_BEARER_TOKEN_BEDROCK
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}

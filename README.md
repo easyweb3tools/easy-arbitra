@@ -73,9 +73,12 @@ The frontend expects these runtime values:
 
 - `AWS_REGION`
 - `BEDROCK_MODEL_ID`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
+- `AWS_BEARER_TOKEN_BEDROCK`
 - `MCP_BRIDGE_URL`
+
+The frontend now prefers Amazon Bedrock API key auth via `AWS_BEARER_TOKEN_BEDROCK`. If that token is present, the Bedrock client uses bearer auth instead of SigV4 credentials.
+
+If the AWS account used by the frontend is not allowlisted for Amazon Bedrock yet, or the bearer token cannot invoke Bedrock, the app falls back to the deterministic 4-step tool pipeline and still returns a report. In that mode, only the final narrative is generated locally instead of by Bedrock.
 
 For local development, `MCP_BRIDGE_URL` should usually point to `http://localhost:8082`.
 
@@ -84,6 +87,12 @@ For local development, `MCP_BRIDGE_URL` should usually point to `http://localhos
 - Frontend: GitHub Actions builds and deploys the Next.js app to Cloudflare Workers
 - Backend: GitHub Actions builds and publishes a Docker image to `ghcr.io`
 - Runtime topology: Cloudflare Worker calls the backend running on your EC2 instance
+
+Bedrock note:
+
+- Some AWS accounts must be manually allowlisted before Bedrock API access is granted.
+- If production shows an AWS message about `bedrock-allowlisting`, submit the AWS support request for that account.
+- Until AWS approves access, the frontend will use deterministic fallback analysis instead of failing the request.
 
 ## Tech Stack
 

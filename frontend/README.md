@@ -32,9 +32,12 @@ The frontend expects these values at runtime:
 
 - `AWS_REGION`
 - `BEDROCK_MODEL_ID`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
+- `AWS_BEARER_TOKEN_BEDROCK`
 - `MCP_BRIDGE_URL`
+
+The app now prefers Amazon Bedrock API key auth via `AWS_BEARER_TOKEN_BEDROCK`. If you still provide `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, the Bedrock client will ignore them whenever the bearer token is present.
+
+If the runtime AWS account does not have Amazon Bedrock access yet, or the bearer token cannot call Bedrock, the `/api/analyze` route falls back to the deterministic tool pipeline. The report still renders, but the final explanation is produced locally instead of by Bedrock.
 
 `MCP_BRIDGE_URL` should be the base URL of the Go backend, for example:
 
@@ -66,6 +69,7 @@ GitHub Actions is the source of truth for Worker configuration:
 
 - GitHub Variables become Cloudflare Worker `vars`
 - GitHub Secrets are pushed as Cloudflare Worker secrets during deployment
+- Set `AWS_BEARER_TOKEN_BEDROCK` as a GitHub Actions secret for production deploys
 
 ## Feature Summary
 

@@ -38,7 +38,7 @@ CI/CD runs on `release/v*` branch pushes via GitHub Actions (`.github/workflows/
 ## Environment
 
 Frontend requires `frontend/.env.local` (see `.env.local.example`):
-- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` — Bedrock credentials
+- `AWS_REGION`, `AWS_BEARER_TOKEN_BEDROCK` — Bedrock API key auth
 - `BEDROCK_MODEL_ID` — defaults to `us.amazon.nova-lite-v1:0`
 - `MCP_BRIDGE_URL` — defaults to `http://localhost:8082`
 
