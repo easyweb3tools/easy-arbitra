@@ -57,6 +57,8 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+For deployment debugging, the frontend also exposes `GET /api/health`. It returns the Worker-visible `MCP_BRIDGE_URL` and the result of probing the backend health endpoint.
+
 ## Cloudflare Deployment
 
 This repo is configured to deploy the frontend as a Cloudflare Worker using OpenNext.
