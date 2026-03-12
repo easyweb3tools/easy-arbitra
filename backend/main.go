@@ -7,10 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/brucexwang/easy-arbitra/backend/discovery"
 	"github.com/brucexwang/easy-arbitra/backend/polymarket"
+	"github.com/brucexwang/easy-arbitra/backend/profileai"
+	"github.com/brucexwang/easy-arbitra/backend/storage"
+	profilesync "github.com/brucexwang/easy-arbitra/backend/sync"
 	"github.com/brucexwang/easy-arbitra/backend/tools"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -18,6 +22,33 @@ import (
 
 func main() {
 	client := polymarket.NewClient()
+	ctx := context.Background()
+
+	var (
+		store       *storage.Store
+		syncService *profilesync.Service
+	)
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		var err error
+		store, err = storage.Open(ctx, databaseURL)
+		if err != nil {
+			log.Fatalf("failed to connect postgres: %v", err)
+		}
+		defer store.Close()
+
+		syncService = profilesync.NewService(
+			client,
+			store,
+			profileai.NewFromEnv(),
+			parseDurationEnv("LEADERBOARD_SYNC_INTERVAL", 4*time.Hour),
+			parseIntEnv("LEADERBOARD_TOP_LIMIT", 100),
+			parseIntEnv("WALLET_ANALYSIS_LIMIT", 3000),
+		)
+		syncService.Start(ctx)
+		log.Println("leaderboard sync enabled")
+	} else {
+		log.Println("DATABASE_URL not set; leaderboard sync disabled")
+	}
 
 	// Create MCP Server
 	mcpServer := server.NewMCPServer(
@@ -44,6 +75,8 @@ func main() {
 	mux.HandleFunc("/api/tools/call", corsMiddleware(restBridge(client)))
 	mux.HandleFunc("/api/tools/call-stream", corsMiddleware(restBridgeStream(client)))
 	mux.HandleFunc("/api/discover-wallets", corsMiddleware(discoverWalletsHandler(client)))
+	mux.HandleFunc("/api/style-wallets", corsMiddleware(styleWalletsHandler(store)))
+	mux.HandleFunc("/api/style-wallets/sync", corsMiddleware(syncStyleWalletsHandler(syncService)))
 	mux.HandleFunc("/api/health", corsMiddleware(healthHandler))
 
 	log.Println("REST bridge starting on :8082")
@@ -249,16 +282,64 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func styleWalletsHandler(store *storage.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if store == nil {
+			http.Error(w, "style wallet catalog is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		limit := fallbackInt(parseQueryInt(r, "limit_per_group"), 6)
+		groups, err := store.ListStyleGroups(r.Context(), limit)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("list style wallets error: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"groups": groups,
+		})
+	}
+}
+
+func syncStyleWalletsHandler(service *profilesync.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if service == nil {
+			http.Error(w, "style wallet sync is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		if err := service.RunOnce(r.Context()); err != nil {
+			http.Error(w, fmt.Sprintf("sync style wallets error: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+		})
+	}
+}
+
 type DiscoverWalletsRequest struct {
-	Mode string   `json:"mode"`
-	Sport string  `json:"sport"`
-	RecentLimit int `json:"recent_limit"`
-	RecentPages int `json:"recent_pages"`
-	CandidateLimit int `json:"candidate_limit"`
-	OutputLimit int `json:"output_limit"`
-	MinRecentTrades int `json:"min_recent_trades"`
-	WalletLimit int `json:"wallet_limit"`
-	Wallets []string `json:"wallets"`
+	Mode            string   `json:"mode"`
+	Sport           string   `json:"sport"`
+	RecentLimit     int      `json:"recent_limit"`
+	RecentPages     int      `json:"recent_pages"`
+	CandidateLimit  int      `json:"candidate_limit"`
+	OutputLimit     int      `json:"output_limit"`
+	MinRecentTrades int      `json:"min_recent_trades"`
+	WalletLimit     int      `json:"wallet_limit"`
+	Wallets         []string `json:"wallets"`
 }
 
 func discoverWalletsHandler(client *polymarket.Client) http.HandlerFunc {
@@ -301,7 +382,7 @@ func discoverWalletsHandler(client *polymarket.Client) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"mode": req.Mode,
+			"mode":    req.Mode,
 			"results": results,
 		})
 	}
@@ -319,6 +400,42 @@ func fallbackInt(value, defaultValue int) int {
 		return defaultValue
 	}
 	return value
+}
+
+func parseIntEnv(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func parseDurationEnv(key string, fallback time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil || duration <= 0 {
+		return fallback
+	}
+	return duration
+}
+
+func parseQueryInt(r *http.Request, key string) int {
+	value := r.URL.Query().Get(key)
+	if value == "" {
+		return 0
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {

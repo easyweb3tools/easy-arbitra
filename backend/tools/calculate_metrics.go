@@ -11,10 +11,10 @@ import (
 )
 
 type MetricsResult struct {
-	Wallet     string         `json:"wallet"`
-	Metrics    StyleMetrics   `json:"metrics"`
-	SampleSize int            `json:"sample_size"`
-	Warning    string         `json:"warning,omitempty"`
+	Wallet     string       `json:"wallet"`
+	Metrics    StyleMetrics `json:"metrics"`
+	SampleSize int          `json:"sample_size"`
+	Warning    string       `json:"warning,omitempty"`
 }
 
 type StyleMetrics struct {
