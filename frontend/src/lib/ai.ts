@@ -70,6 +70,11 @@ interface PipelineResult {
   reportPayload: ReportPayload;
 }
 
+interface ExplanationResult {
+  text: string;
+  source: "ai" | "fallback";
+}
+
 export async function analyzeWalletStream(
   walletInput: string,
   onEvent: (event: StreamEvent) => void
@@ -77,13 +82,14 @@ export async function analyzeWalletStream(
   const pipeline = await runDeterministicPipeline(walletInput, onEvent);
   const explanation = await generateExplanation(pipeline);
 
-  onEvent({ type: "explanation", data: explanation });
+  onEvent({ type: "explanation", data: explanation.text });
   onEvent({
     type: "done",
     data: {
       decisionLog: pipeline.decisionLog,
       reportPayload: pipeline.reportPayload,
-      explanation,
+      explanation: explanation.text,
+      explanation_source: explanation.source,
     },
   });
 }
@@ -177,9 +183,12 @@ async function runDeterministicPipeline(
   };
 }
 
-async function generateExplanation(pipeline: PipelineResult): Promise<string> {
+async function generateExplanation(pipeline: PipelineResult): Promise<ExplanationResult> {
   if (!isAIConfigured()) {
-    return buildFallbackExplanation(pipeline, "AI provider is not configured.");
+    return {
+      text: buildFallbackExplanation(pipeline, "AI provider is not configured."),
+      source: "fallback",
+    };
   }
 
   try {
@@ -227,9 +236,12 @@ async function generateExplanation(pipeline: PipelineResult): Promise<string> {
       throw new Error("AI API returned an empty explanation.");
     }
 
-    return explanation;
+    return { text: explanation, source: "ai" };
   } catch (error) {
-    return buildFallbackExplanation(pipeline, getErrorMessage(error));
+    return {
+      text: buildFallbackExplanation(pipeline, getErrorMessage(error)),
+      source: "fallback",
+    };
   }
 }
 
