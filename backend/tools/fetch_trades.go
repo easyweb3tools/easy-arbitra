@@ -38,128 +38,70 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 			tradeLimit = int(l)
 		}
 
-		// Step 1: Get sport tag ID from sports metadata
-		tags, err := client.GetSportsTags()
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("failed to get sports tags: %v", err)), nil
-		}
-
-		var sportTagID string
-		for _, tag := range tags {
-			slug := strings.ToLower(tag.Slug)
-			label := strings.ToLower(tag.Label)
-			if strings.Contains(slug, sport) || strings.Contains(label, sport) {
-				sportTagID = tag.ID
-				break
-			}
-		}
-
-		if sportTagID == "" {
-			sportTagID = sport
-		}
-
-		// Step 2: Get sport events (paginate to cover historical data)
-		sportConditionIDs := make(map[string]bool)
-		for offset := 0; ; offset += 100 {
-			events, err := client.GetEvents(sportTagID, 100, offset)
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get %s events: %v", sport, err)), nil
-			}
-			for _, event := range events {
-				for _, market := range event.Markets {
-					if market.ConditionID != "" {
-						sportConditionIDs[market.ConditionID] = true
-					}
-				}
-			}
-			if len(events) < 100 {
-				break // last page
-			}
-			time.Sleep(200 * time.Millisecond)
-		}
-
-		// Step 3: Get user trades
+		LogToolf(ctx, "Fetching recent trades for %s (limit=%d)", wallet, tradeLimit)
 		trades, err := client.GetTrades(wallet, tradeLimit, 0)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to get trades: %v", err)), nil
 		}
+		LogToolf(ctx, "Fetched %d raw trades", len(trades))
 
-		// Step 4: Filter to sport trades
-		// First pass: match against known sport conditionIDs
-		var sportTrades []polymarket.Trade
-		var unmatchedConditionIDs []string
-		unmatchedSet := make(map[string]bool)
-		for _, trade := range trades {
-			if sportConditionIDs[trade.ConditionID] {
-				sportTrades = append(sportTrades, trade)
-			} else if !unmatchedSet[trade.ConditionID] {
-				unmatchedSet[trade.ConditionID] = true
-				unmatchedConditionIDs = append(unmatchedConditionIDs, trade.ConditionID)
+		if len(trades) == 0 {
+			result := FetchTradesResult{
+				Wallet:      wallet,
+				Sport:       sport,
+				TotalTrades: 0,
+				Trades:      []polymarket.EnrichedTrade{},
 			}
+			data, _ := json.Marshal(result)
+			return mcp.NewToolResultText(string(data)), nil
 		}
 
-		// Second pass: check unmatched trades against market metadata
-		// to catch sport markets not returned by the events endpoint
-		for i := 0; i < len(unmatchedConditionIDs); i += 20 {
-			end := i + 20
-			if end > len(unmatchedConditionIDs) {
-				end = len(unmatchedConditionIDs)
-			}
-			markets, err := client.GetMarkets(unmatchedConditionIDs[i:end])
-			if err != nil {
-				continue
-			}
-			for _, m := range markets {
-				q := strings.ToLower(m.Question)
-				if strings.Contains(q, sport) || (sport == "nba" && strings.Contains(q, "basketball")) {
-					sportConditionIDs[m.ConditionID] = true
-				}
-			}
-			if end < len(unmatchedConditionIDs) {
-				time.Sleep(200 * time.Millisecond)
-			}
-		}
-
-		// Re-filter with expanded sport set
-		sportTrades = nil
-		for _, trade := range trades {
-			if sportConditionIDs[trade.ConditionID] {
-				sportTrades = append(sportTrades, trade)
-			}
-		}
-
-		// Step 5: Get market metadata for enrichment
 		conditionIDSet := make(map[string]bool)
-		for _, t := range sportTrades {
-			conditionIDSet[t.ConditionID] = true
+		for _, trade := range trades {
+			if trade.ConditionID != "" {
+				conditionIDSet[trade.ConditionID] = true
+			}
 		}
+
 		conditionIDList := make([]string, 0, len(conditionIDSet))
 		for id := range conditionIDSet {
 			conditionIDList = append(conditionIDList, id)
 		}
+		LogToolf(ctx, "Resolving metadata for %d unique markets", len(conditionIDList))
 
 		marketMap := make(map[string]polymarket.Market)
-		// Batch in groups of 20 to avoid URL length limits
+		sportConditionIDs := make(map[string]bool)
 		for i := 0; i < len(conditionIDList); i += 20 {
 			end := i + 20
 			if end > len(conditionIDList) {
 				end = len(conditionIDList)
 			}
 			batch := conditionIDList[i:end]
+			LogToolf(ctx, "Fetching market metadata batch %d-%d", i+1, end)
+
 			markets, err := client.GetMarkets(batch)
 			if err != nil {
-				continue // skip failed batches
+				LogToolf(ctx, "Skipping market batch %d-%d after error: %v", i+1, end, err)
+				continue
 			}
+
 			for _, m := range markets {
 				marketMap[m.ConditionID] = m
-			}
-			// Rate limit
-			if end < len(conditionIDList) {
-				time.Sleep(200 * time.Millisecond)
+				if isSportMarket(m, sport) {
+					sportConditionIDs[m.ConditionID] = true
+				}
 			}
 		}
 
-		// Step 6: Build enriched trades
+		LogToolf(ctx, "Filtering %d trades down to %s positions", len(trades), strings.ToUpper(sport))
+		var sportTrades []polymarket.Trade
+		for _, trade := range trades {
+			if sportConditionIDs[trade.ConditionID] || isSportText(trade.Title, sport) {
+				sportTrades = append(sportTrades, trade)
+			}
+		}
+
+		LogToolf(ctx, "Building enriched response for %d %s trades", len(sportTrades), strings.ToUpper(sport))
 		enriched := make([]polymarket.EnrichedTrade, 0, len(sportTrades))
 		for _, t := range sportTrades {
 			et := polymarket.EnrichedTrade{
@@ -180,6 +122,7 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 			}
 			enriched = append(enriched, et)
 		}
+		LogToolf(ctx, "Fetch trades complete")
 
 		result := FetchTradesResult{
 			Wallet:      wallet,
@@ -191,4 +134,17 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 		data, _ := json.Marshal(result)
 		return mcp.NewToolResultText(string(data)), nil
 	}
+}
+
+func isSportMarket(m polymarket.Market, sport string) bool {
+	return isSportText(m.Question, sport) || isSportText(m.Slug, sport)
+}
+
+func isSportText(text, sport string) bool {
+	value := strings.ToLower(text)
+	if strings.Contains(value, sport) {
+		return true
+	}
+
+	return sport == "nba" && strings.Contains(value, "basketball")
 }

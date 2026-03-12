@@ -55,6 +55,13 @@ export function DecisionLog({ steps }: DecisionLogProps) {
                 {step.result_summary}
               </p>
             )}
+            {step.logs && step.logs.length > 0 && (
+              <div className="mt-3 space-y-1 rounded-md border border-white/10 bg-black/20 p-3 font-mono text-xs text-white/55">
+                {step.logs.map((log, logIdx) => (
+                  <p key={`${step.step}-${logIdx}`}>{log}</p>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ))}

@@ -31,12 +31,19 @@ export interface DecisionStep {
   reasoning: string;
   timestamp: string;
   result_summary?: string;
+  logs?: string[];
 }
 
 export interface AnalyzeResponse {
   decisionLog: DecisionStep[];
   reportPayload: ReportPayload;
   explanation: string;
+}
+
+export interface ToolLogEntry {
+  tool: string;
+  message: string;
+  timestamp: string;
 }
 
 export interface ToolCallRequest {

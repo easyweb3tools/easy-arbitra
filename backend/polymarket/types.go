@@ -3,6 +3,7 @@ package polymarket
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -22,8 +23,8 @@ type Trade struct {
 	Side        string  `json:"side"`        // "BUY" or "SELL"
 	Asset       string  `json:"asset"`       // token ID
 	ConditionID string  `json:"conditionId"` // market condition ID
-	Size        float64 `json:"size,string"`
-	Price       float64 `json:"price,string"`
+	Size        float64 `json:"size"`
+	Price       float64 `json:"price"`
 	Timestamp   int64   `json:"timestamp"`
 	Title       string  `json:"title"`
 	Outcome     string  `json:"outcome"` // "Yes" or "No"
@@ -31,6 +32,48 @@ type Trade struct {
 
 func (t Trade) Time() time.Time {
 	return time.Unix(t.Timestamp, 0)
+}
+
+func (t *Trade) UnmarshalJSON(data []byte) error {
+	type rawTrade struct {
+		ID          string          `json:"id"`
+		ProxyWallet string          `json:"proxyWallet"`
+		Side        string          `json:"side"`
+		Asset       string          `json:"asset"`
+		ConditionID string          `json:"conditionId"`
+		Size        json.RawMessage `json:"size"`
+		Price       json.RawMessage `json:"price"`
+		Timestamp   int64           `json:"timestamp"`
+		Title       string          `json:"title"`
+		Outcome     string          `json:"outcome"`
+	}
+
+	var raw rawTrade
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	size, err := parseFlexibleFloat(raw.Size)
+	if err != nil {
+		return fmt.Errorf("parse trade size: %w", err)
+	}
+
+	price, err := parseFlexibleFloat(raw.Price)
+	if err != nil {
+		return fmt.Errorf("parse trade price: %w", err)
+	}
+
+	t.ID = raw.ID
+	t.ProxyWallet = raw.ProxyWallet
+	t.Side = raw.Side
+	t.Asset = raw.Asset
+	t.ConditionID = raw.ConditionID
+	t.Size = size
+	t.Price = price
+	t.Timestamp = raw.Timestamp
+	t.Title = raw.Title
+	t.Outcome = raw.Outcome
+	return nil
 }
 
 // Market represents a Polymarket market from Gamma API.
@@ -91,6 +134,28 @@ func (t *Tag) UnmarshalJSON(data []byte) error {
 	}
 
 	return fmt.Errorf("unsupported tag id: %s", string(raw.ID))
+}
+
+func parseFlexibleFloat(data json.RawMessage) (float64, error) {
+	if len(data) == 0 || string(data) == "null" {
+		return 0, nil
+	}
+
+	var number float64
+	if err := json.Unmarshal(data, &number); err == nil {
+		return number, nil
+	}
+
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		value, parseErr := strconv.ParseFloat(text, 64)
+		if parseErr != nil {
+			return 0, parseErr
+		}
+		return value, nil
+	}
+
+	return 0, fmt.Errorf("unsupported numeric value: %s", string(data))
 }
 
 // EnrichedTrade is a trade enriched with market metadata.

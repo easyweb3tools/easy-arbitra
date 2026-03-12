@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/brucexwang/easy-arbitra/backend/polymarket"
 	"github.com/brucexwang/easy-arbitra/backend/tools"
@@ -40,6 +41,7 @@ func main() {
 	// Start REST bridge on :8082
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tools/call", corsMiddleware(restBridge(client)))
+	mux.HandleFunc("/api/tools/call-stream", corsMiddleware(restBridgeStream(client)))
 	mux.HandleFunc("/api/health", corsMiddleware(healthHandler))
 
 	log.Println("REST bridge starting on :8082")
@@ -111,10 +113,10 @@ type ToolCallRequest struct {
 
 func restBridge(client *polymarket.Client) http.HandlerFunc {
 	handlers := map[string]func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error){
-		"resolve_wallet_target":  tools.ResolveWalletTarget(client),
-		"fetch_sports_trades":    tools.FetchSportsTrades(client),
+		"resolve_wallet_target":   tools.ResolveWalletTarget(client),
+		"fetch_sports_trades":     tools.FetchSportsTrades(client),
 		"calculate_style_metrics": tools.CalculateStyleMetrics(),
-		"build_report_payload":   tools.BuildReportPayload(),
+		"build_report_payload":    tools.BuildReportPayload(),
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -147,6 +149,96 @@ func restBridge(client *polymarket.Client) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
+	}
+}
+
+func restBridgeStream(client *polymarket.Client) http.HandlerFunc {
+	handlers := map[string]func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error){
+		"resolve_wallet_target":   tools.ResolveWalletTarget(client),
+		"fetch_sports_trades":     tools.FetchSportsTrades(client),
+		"calculate_style_metrics": tools.CalculateStyleMetrics(),
+		"build_report_payload":    tools.BuildReportPayload(),
+	}
+
+	type streamEvent struct {
+		Type      string              `json:"type"`
+		Message   string              `json:"message,omitempty"`
+		Timestamp string              `json:"timestamp,omitempty"`
+		Result    *mcp.CallToolResult `json:"result,omitempty"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		var req ToolCallRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		handler, ok := handlers[req.Tool]
+		if !ok {
+			http.Error(w, fmt.Sprintf("unknown tool: %s", req.Tool), http.StatusBadRequest)
+			return
+		}
+
+		writeEvent := func(event streamEvent) {
+			payload, _ := json.Marshal(event)
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+			flusher.Flush()
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		ctx := tools.WithToolLogWriter(r.Context(), func(message string) {
+			writeEvent(streamEvent{
+				Type:      "log",
+				Message:   message,
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+		})
+
+		writeEvent(streamEvent{
+			Type:      "log",
+			Message:   fmt.Sprintf("Starting %s", req.Tool),
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+
+		mcpReq := mcp.CallToolRequest{}
+		mcpReq.Params.Name = req.Tool
+		mcpReq.Params.Arguments = req.Args
+
+		result, err := handler(ctx, mcpReq)
+		if err != nil {
+			writeEvent(streamEvent{
+				Type:      "error",
+				Message:   fmt.Sprintf("tool error: %v", err),
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+			return
+		}
+
+		writeEvent(streamEvent{
+			Type:      "log",
+			Message:   fmt.Sprintf("Completed %s", req.Tool),
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		writeEvent(streamEvent{
+			Type:      "result",
+			Result:    result,
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
 	}
 }
 
