@@ -7,9 +7,14 @@ import type { ReportData } from "@/lib/types";
 interface ReportSummaryProps {
   report: ReportData;
   explanation: string;
+  explanationSource: "ai" | "fallback";
 }
 
-export function ReportSummary({ report, explanation }: ReportSummaryProps) {
+export function ReportSummary({
+  report,
+  explanation,
+  explanationSource,
+}: ReportSummaryProps) {
   return (
     <Card className="bg-white/5 border-white/10">
       <CardHeader className="pb-3">
@@ -24,9 +29,12 @@ export function ReportSummary({ report, explanation }: ReportSummaryProps) {
         <p className="text-sm text-white/60">{report.summary_context}</p>
         <Separator className="bg-white/10" />
         <div className="bg-white/5 rounded-lg p-4 border-l-2 border-purple-500">
-          <p className="text-xs text-purple-300 mb-2 font-medium">
-            AI Analysis
-          </p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-xs font-medium text-purple-300">AI Analysis</p>
+            <span className="text-[10px] uppercase tracking-wide text-white/45">
+              {explanationSource === "ai" ? "AI-generated" : "Fallback-generated"}
+            </span>
+          </div>
           <p className="text-sm text-white/80 whitespace-pre-wrap leading-relaxed">
             {explanation}
           </p>

@@ -134,7 +134,11 @@ export default function Dashboard() {
         <div className="max-w-md mx-auto space-y-3 mt-16">
           {STEP_LABELS.map((label, i) => {
             const completed = completedSteps.find((s) => s.step === i + 1);
-            const isActive = activeStep === i || (activeStep > i && !completed);
+            const isFinalStep = i === STEP_LABELS.length - 1;
+            const showCompleted = Boolean(completed) && !isFinalStep;
+            const isActive =
+              (activeStep === i || (activeStep > i && !completed)) ||
+              (isFinalStep && Boolean(completed));
             const isPending = activeStep < i;
             const toolName = [
               "resolve_wallet_target",
@@ -149,7 +153,7 @@ export default function Dashboard() {
               <div key={label}>
                 <div
                   className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-300 ${
-                    completed
+                    showCompleted
                       ? "bg-green-500/10 border border-green-500/20"
                       : isActive
                         ? "bg-blue-500/10 border border-blue-500/20"
@@ -157,7 +161,7 @@ export default function Dashboard() {
                   }`}
                 >
                   <div className="w-6 h-6 flex items-center justify-center">
-                    {completed ? (
+                    {showCompleted ? (
                       <svg
                         className="w-5 h-5 text-green-400"
                         fill="none"
@@ -183,7 +187,7 @@ export default function Dashboard() {
                   </div>
                   <span
                     className={`text-sm ${
-                      completed
+                      showCompleted
                         ? "text-green-300"
                         : isActive
                           ? "text-blue-300"
@@ -192,7 +196,7 @@ export default function Dashboard() {
                   >
                     {label}
                   </span>
-                  {completed?.result_summary && (
+                  {showCompleted && completed?.result_summary && (
                     <span className="ml-auto text-xs text-white/40 truncate max-w-[200px]">
                       {completed.result_summary}
                     </span>
@@ -325,6 +329,7 @@ export default function Dashboard() {
           <ReportSummary
             report={data.reportPayload.report}
             explanation={data.explanation}
+            explanationSource={data.explanation_source ?? "fallback"}
           />
         </div>
       </div>

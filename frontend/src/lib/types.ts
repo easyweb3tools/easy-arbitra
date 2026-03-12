@@ -38,6 +38,7 @@ export interface AnalyzeResponse {
   decisionLog: DecisionStep[];
   reportPayload: ReportPayload;
   explanation: string;
+  explanation_source: "ai" | "fallback";
 }
 
 export interface ToolLogEntry {
