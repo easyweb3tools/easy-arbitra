@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/brucexwang/easy-arbitra/backend/discovery"
 	"github.com/brucexwang/easy-arbitra/backend/polymarket"
 	"github.com/brucexwang/easy-arbitra/backend/tools"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -42,6 +43,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tools/call", corsMiddleware(restBridge(client)))
 	mux.HandleFunc("/api/tools/call-stream", corsMiddleware(restBridgeStream(client)))
+	mux.HandleFunc("/api/discover-wallets", corsMiddleware(discoverWalletsHandler(client)))
 	mux.HandleFunc("/api/health", corsMiddleware(healthHandler))
 
 	log.Println("REST bridge starting on :8082")
@@ -245,6 +247,78 @@ func restBridgeStream(client *polymarket.Client) http.HandlerFunc {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+type DiscoverWalletsRequest struct {
+	Mode string   `json:"mode"`
+	Sport string  `json:"sport"`
+	RecentLimit int `json:"recent_limit"`
+	RecentPages int `json:"recent_pages"`
+	CandidateLimit int `json:"candidate_limit"`
+	OutputLimit int `json:"output_limit"`
+	MinRecentTrades int `json:"min_recent_trades"`
+	WalletLimit int `json:"wallet_limit"`
+	Wallets []string `json:"wallets"`
+}
+
+func discoverWalletsHandler(client *polymarket.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req DiscoverWalletsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		opts := discovery.Options{
+			Sport:           fallbackString(req.Sport, "nba"),
+			RecentLimit:     fallbackInt(req.RecentLimit, 400),
+			RecentPages:     fallbackInt(req.RecentPages, 4),
+			CandidateLimit:  fallbackInt(req.CandidateLimit, 20),
+			OutputLimit:     fallbackInt(req.OutputLimit, 10),
+			MinRecentTrades: fallbackInt(req.MinRecentTrades, 2),
+			WalletLimit:     fallbackInt(req.WalletLimit, 500),
+		}
+
+		var (
+			results []discovery.Candidate
+			err     error
+		)
+		switch req.Mode {
+		case "wallets":
+			results, err = discovery.ScoreWallets(r.Context(), client, req.Wallets, opts)
+		default:
+			results, err = discovery.DiscoverFromRecent(r.Context(), client, opts)
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf("discover wallets error: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"mode": req.Mode,
+			"results": results,
+		})
+	}
+}
+
+func fallbackString(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func fallbackInt(value, defaultValue int) int {
+	if value <= 0 {
+		return defaultValue
+	}
+	return value
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
