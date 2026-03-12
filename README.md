@@ -74,6 +74,7 @@ The frontend expects these runtime values:
 - `AI_BASE_URL`
 - `AI_MODEL`
 - `AI_API_KEY`
+- `AI_TIMEOUT_MS` optional, defaults to `120000`
 - `MCP_BRIDGE_URL`
 
 The frontend calls an OpenAI-compatible `chat/completions` endpoint for the final explanation. If the AI provider is unavailable, the app still completes the deterministic 4-step tool pipeline and falls back to a locally generated narrative.

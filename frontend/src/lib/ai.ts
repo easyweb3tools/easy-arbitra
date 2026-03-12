@@ -9,6 +9,7 @@ import type {
 const AI_BASE_URL = process.env.AI_BASE_URL?.trim();
 const AI_MODEL = process.env.AI_MODEL?.trim();
 const AI_API_KEY = process.env.AI_API_KEY?.trim();
+const AI_TIMEOUT_MS = parseTimeoutMs(process.env.AI_TIMEOUT_MS);
 
 const AI_SYSTEM_PROMPT = `You are SportStyle AI Explainer, an expert sports betting analyst.
 
@@ -182,6 +183,8 @@ async function generateExplanation(pipeline: PipelineResult): Promise<string> {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
     const response = await fetch(getChatCompletionsUrl(AI_BASE_URL!), {
       method: "POST",
       headers: {
@@ -200,7 +203,8 @@ async function generateExplanation(pipeline: PipelineResult): Promise<string> {
         ],
       }),
       cache: "no-store",
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
 
     if (!response.ok) {
       const body = await response.text();
@@ -231,6 +235,14 @@ async function generateExplanation(pipeline: PipelineResult): Promise<string> {
 
 function isAIConfigured(): boolean {
   return Boolean(AI_BASE_URL && AI_MODEL && AI_API_KEY);
+}
+
+function parseTimeoutMs(value: string | undefined): number {
+  const parsed = Number.parseInt(value || "", 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return 120_000;
 }
 
 function getChatCompletionsUrl(baseUrl: string): string {
