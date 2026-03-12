@@ -1,6 +1,10 @@
 package polymarket
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 // Profile represents a Polymarket user profile from Gamma API.
 type Profile struct {
@@ -55,6 +59,38 @@ type Tag struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Slug  string `json:"slug"`
+}
+
+func (t *Tag) UnmarshalJSON(data []byte) error {
+	type rawTag struct {
+		ID    json.RawMessage `json:"id"`
+		Label string          `json:"label"`
+		Slug  string          `json:"slug"`
+	}
+
+	var raw rawTag
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	t.Label = raw.Label
+	t.Slug = raw.Slug
+
+	if len(raw.ID) == 0 || string(raw.ID) == "null" {
+		return nil
+	}
+
+	if err := json.Unmarshal(raw.ID, &t.ID); err == nil {
+		return nil
+	}
+
+	var numericID json.Number
+	if err := json.Unmarshal(raw.ID, &numericID); err == nil {
+		t.ID = numericID.String()
+		return nil
+	}
+
+	return fmt.Errorf("unsupported tag id: %s", string(raw.ID))
 }
 
 // EnrichedTrade is a trade enriched with market metadata.
