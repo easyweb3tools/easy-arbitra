@@ -328,7 +328,6 @@ async function analyzeWithoutBedrock(
   const tradesText = await callMCPTool("fetch_sports_trades", {
     wallet: walletInfo.wallet_address,
     sport: "nba",
-    limit: 500,
   }, (message) => emitToolLog("fetch_sports_trades", message));
   addStep("fetch_sports_trades", tradesText);
   const tradesResult = JSON.parse(tradesText) as FetchTradesResult;
