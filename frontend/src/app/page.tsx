@@ -39,27 +39,27 @@ export default function Home() {
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center gap-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            SportStyle AI Explainer
-          </h1>
-          <p className="text-lg text-white/60 max-w-md mx-auto">
-            Analyze any Polymarket wallet&apos;s NBA trading style with an
-            OpenAI-compatible AI backend
+          <div className="space-y-4 text-center">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              SportStyle AI Explainer
+            </h1>
+            <p className="mx-auto max-w-md text-lg text-white/60">
+              Analyze any Polymarket wallet&apos;s NBA trading style with an
+              OpenAI-compatible AI backend
+            </p>
+          </div>
+
+          <div className="flex w-full max-w-5xl justify-center">
+            {activeView === "analyze" ? (
+              <WalletInput onSubmit={handleAnalyze} isLoading={isLoading} />
+            ) : (
+              <SettingsPanel onAnalyzeWallet={handleAnalyze} />
+            )}
+          </div>
+
+          <p className="mt-8 text-xs text-white/30">
+            Powered by an OpenAI-compatible LLM
           </p>
-        </div>
-
-        <div className="w-full max-w-5xl">
-          {activeView === "analyze" ? (
-            <WalletInput onSubmit={handleAnalyze} isLoading={isLoading} />
-          ) : (
-            <SettingsPanel onAnalyzeWallet={handleAnalyze} />
-          )}
-        </div>
-
-        <p className="text-xs text-white/30 mt-8">
-          Powered by an OpenAI-compatible LLM
-        </p>
         </div>
       </div>
     </main>

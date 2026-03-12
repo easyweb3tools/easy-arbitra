@@ -39,7 +39,7 @@ export function WalletInput({ onSubmit, isLoading }: WalletInputProps) {
   };
 
   return (
-    <div className="w-full max-w-xl space-y-4">
+    <div className="mx-auto w-full max-w-xl space-y-4">
       <div className="flex gap-3">
         <Input
           placeholder="0x... or polymarket.com/profile/0x..."
