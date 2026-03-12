@@ -68,7 +68,7 @@ func BuildReportPayload() func(ctx context.Context, request mcp.CallToolRequest)
 		conviction := metricsData.Metrics.Conviction
 
 		// Determine style label
-		styleLabel := determineStyleLabel(entryTiming, sizeRatio, conviction)
+		styleLabel := DetermineStyleLabel(entryTiming, sizeRatio, conviction)
 
 		// Build summary context
 		summaryContext := fmt.Sprintf(
@@ -107,7 +107,7 @@ func BuildReportPayload() func(ctx context.Context, request mcp.CallToolRequest)
 	}
 }
 
-func determineStyleLabel(entryTiming, sizeRatio, conviction float64) string {
+func DetermineStyleLabel(entryTiming, sizeRatio, conviction float64) string {
 	if entryTiming > 0.7 && sizeRatio > 0.5 {
 		return "Early Whale"
 	}

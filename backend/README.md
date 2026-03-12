@@ -57,6 +57,22 @@ Build:
 go build ./...
 ```
 
+## Discover Demo Wallets
+
+Use the wallet discovery script to find or rank candidate wallets for demos:
+
+```bash
+go run ./cmd/discover-wallets -recent-limit 400 -recent-pages 4 -output 10
+```
+
+If recent global trades do not include enough NBA activity, score your own curated wallet list instead:
+
+```bash
+go run ./cmd/discover-wallets -wallets-file ./wallets.txt -output 10
+```
+
+The script ranks wallets by presentation quality rather than profit. It favors larger NBA samples, broader market coverage, and more legible style metrics for demos.
+
 ## Container Build
 
 The backend image is built from `backend/Dockerfile`.
