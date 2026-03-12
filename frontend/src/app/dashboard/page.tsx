@@ -295,7 +295,7 @@ export default function Dashboard() {
           <Card className="bg-white/5 border-white/10 h-full">
             <CardHeader>
               <CardTitle className="text-white/80 text-sm font-medium">
-                Nova Decision Log
+                Analysis Decision Log
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -332,7 +332,7 @@ export default function Dashboard() {
       {/* Footer */}
       <div className="max-w-7xl mx-auto mt-8 text-center">
         <p className="text-xs text-white/30">
-          Powered by Amazon Nova
+          Powered by an OpenAI-compatible LLM
         </p>
       </div>
     </main>

@@ -25,7 +25,7 @@ export function ReportSummary({ report, explanation }: ReportSummaryProps) {
         <Separator className="bg-white/10" />
         <div className="bg-white/5 rounded-lg p-4 border-l-2 border-purple-500">
           <p className="text-xs text-purple-300 mb-2 font-medium">
-            Nova AI Analysis
+            AI Analysis
           </p>
           <p className="text-sm text-white/80 whitespace-pre-wrap leading-relaxed">
             {explanation}

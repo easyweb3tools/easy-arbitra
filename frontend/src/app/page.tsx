@@ -30,8 +30,8 @@ export default function Home() {
             SportStyle AI Explainer
           </h1>
           <p className="text-lg text-white/60 max-w-md mx-auto">
-            Analyze any Polymarket wallet&apos;s NBA trading style using Amazon
-            Nova AI
+            Analyze any Polymarket wallet&apos;s NBA trading style with an
+            OpenAI-compatible AI backend
           </p>
         </div>
 
@@ -66,7 +66,9 @@ export default function Home() {
           )}
         </div>
 
-        <p className="text-xs text-white/30 mt-8">Powered by Amazon Nova</p>
+        <p className="text-xs text-white/30 mt-8">
+          Powered by an OpenAI-compatible LLM
+        </p>
       </div>
     </main>
   );

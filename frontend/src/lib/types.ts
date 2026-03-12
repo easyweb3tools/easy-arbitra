@@ -55,23 +55,3 @@ export interface MCPToolResult {
   content: Array<{ type: string; text: string }>;
   isError?: boolean;
 }
-
-// Bedrock Converse types
-export interface BedrockMessage {
-  role: "user" | "assistant";
-  content: BedrockContent[];
-}
-
-export interface BedrockContent {
-  text?: string;
-  toolUse?: {
-    toolUseId: string;
-    name: string;
-    input: Record<string, unknown>;
-  };
-  toolResult?: {
-    toolUseId: string;
-    content: Array<{ text: string }>;
-    status?: "success" | "error";
-  };
-}
