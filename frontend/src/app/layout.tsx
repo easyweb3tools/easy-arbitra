@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SportStyle AI Explainer",
-  description: "Analyze Polymarket wallet NBA trading styles with Amazon Nova",
+  description:
+    "Analyze Polymarket wallet NBA trading styles with an OpenAI-compatible AI backend",
 };
 
 export default function RootLayout({

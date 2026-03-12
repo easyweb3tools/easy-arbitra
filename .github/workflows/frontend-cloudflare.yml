@@ -24,8 +24,9 @@ jobs:
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
+      AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+      AI_MODEL: ${{ vars.AI_MODEL }}
+      AI_TIMEOUT_MS: ${{ vars.AI_TIMEOUT_MS }}
       MCP_BRIDGE_URL: ${{ vars.MCP_BRIDGE_URL }}
     steps:
       - name: Checkout
@@ -35,10 +36,10 @@ jobs:
         run: |
           test -n "${CLOUDFLARE_ACCOUNT_ID}" || { echo "Missing secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
           test -n "${CLOUDFLARE_API_TOKEN}" || { echo "Missing secret: CLOUDFLARE_API_TOKEN"; exit 1; }
-          test -n "${AWS_REGION}" || { echo "Missing repository variable: AWS_REGION"; exit 1; }
-          test -n "${BEDROCK_MODEL_ID}" || { echo "Missing repository variable: BEDROCK_MODEL_ID"; exit 1; }
+          test -n "${AI_BASE_URL}" || { echo "Missing repository variable: AI_BASE_URL"; exit 1; }
+          test -n "${AI_MODEL}" || { echo "Missing repository variable: AI_MODEL"; exit 1; }
           test -n "${MCP_BRIDGE_URL}" || { echo "Missing repository variable: MCP_BRIDGE_URL"; exit 1; }
-          test -n "${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}" || { echo "Missing secret: AWS_BEARER_TOKEN_BEDROCK"; exit 1; }
+          test -n "${{ secrets.AI_API_KEY }}" || { echo "Missing secret: AI_API_KEY"; exit 1; }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,8 +58,9 @@ jobs:
           const path = "wrangler.jsonc";
           const config = JSON.parse(fs.readFileSync(path, "utf8"));
           config.vars = {
-            AWS_REGION: process.env.AWS_REGION,
-            BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID,
+            AI_BASE_URL: process.env.AI_BASE_URL,
+            AI_MODEL: process.env.AI_MODEL,
+            AI_TIMEOUT_MS: process.env.AI_TIMEOUT_MS,
             MCP_BRIDGE_URL: process.env.MCP_BRIDGE_URL
           };
           fs.writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
@@ -77,6 +79,6 @@ jobs:
           command: deploy
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           secrets: |
-            AWS_BEARER_TOKEN_BEDROCK
+            AI_API_KEY
         env:
-          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}

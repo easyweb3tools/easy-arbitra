@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeWalletStream } from "@/lib/bedrock";
+import { analyzeWalletStream } from "@/lib/ai";
 
 export async function POST(request: Request) {
   try {

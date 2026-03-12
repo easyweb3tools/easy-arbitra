@@ -1,4 +1,4 @@
-// Bedrock Converse API tool definitions mirroring the 4 MCP tools
+// Tool definitions mirroring the 4 MCP tools used by the analysis pipeline
 
 export const toolConfig = {
   tools: [
