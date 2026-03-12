@@ -32,8 +32,8 @@ func FetchSportsTrades(client *polymarket.Client) func(ctx context.Context, requ
 			sport = strings.ToLower(s)
 		}
 
-		// Parse optional limit param (default: 500)
-		tradeLimit := 500
+		// Parse optional limit param (default: 3000 scanned trades)
+		tradeLimit := 3000
 		if l, ok := args["limit"].(float64); ok && l > 0 {
 			tradeLimit = int(l)
 		}
@@ -54,14 +54,49 @@ func FetchSportsTradesData(
 	wallet, sport string,
 	tradeLimit int,
 ) (FetchTradesResult, error) {
-	LogToolf(ctx, "Fetching recent trades for %s (limit=%d)", wallet, tradeLimit)
-	trades, err := client.GetTrades(wallet, tradeLimit, 0)
-	if err != nil {
-		return FetchTradesResult{}, fmt.Errorf("failed to get trades: %v", err)
-	}
-	LogToolf(ctx, "Fetched %d raw trades", len(trades))
+	const pageSize = 500
+	const targetSportTrades = 40
 
-	if len(trades) == 0 {
+	if tradeLimit < pageSize {
+		tradeLimit = pageSize
+	}
+
+	LogToolf(ctx, "Scanning up to %d recent trades for %s signals", tradeLimit, strings.ToUpper(sport))
+
+	allTrades := make([]polymarket.Trade, 0, minInt(tradeLimit, pageSize))
+	sportTrades := make([]polymarket.Trade, 0, 64)
+	scanned := 0
+
+	for offset := 0; offset < tradeLimit; offset += pageSize {
+		pageLimit := minInt(pageSize, tradeLimit-offset)
+		LogToolf(ctx, "Fetching trades page offset=%d limit=%d", offset, pageLimit)
+
+		pageTrades, err := client.GetTrades(wallet, pageLimit, offset)
+		if err != nil {
+			return FetchTradesResult{}, fmt.Errorf("failed to get trades: %v", err)
+		}
+
+		allTrades = append(allTrades, pageTrades...)
+		scanned += len(pageTrades)
+		for _, trade := range pageTrades {
+			if isSportTrade(trade, sport) {
+				sportTrades = append(sportTrades, trade)
+			}
+		}
+
+		LogToolf(ctx, "Fetched %d trades on this page (%d %s matches so far)", len(pageTrades), len(sportTrades), strings.ToUpper(sport))
+
+		if len(pageTrades) < pageLimit {
+			break
+		}
+		if len(sportTrades) >= targetSportTrades {
+			break
+		}
+	}
+
+	LogToolf(ctx, "Scanned %d raw trades and found %d %s candidates", scanned, len(sportTrades), strings.ToUpper(sport))
+
+	if len(allTrades) == 0 {
 		return FetchTradesResult{
 			Wallet:      wallet,
 			Sport:       sport,
@@ -71,7 +106,7 @@ func FetchSportsTradesData(
 	}
 
 	conditionIDSet := make(map[string]bool)
-	for _, trade := range trades {
+	for _, trade := range sportTrades {
 		if trade.ConditionID != "" {
 			conditionIDSet[trade.ConditionID] = true
 		}
@@ -81,10 +116,9 @@ func FetchSportsTradesData(
 	for id := range conditionIDSet {
 		conditionIDList = append(conditionIDList, id)
 	}
-	LogToolf(ctx, "Resolving metadata for %d unique markets", len(conditionIDList))
+	LogToolf(ctx, "Resolving metadata for %d %s markets", len(conditionIDList), strings.ToUpper(sport))
 
 	marketMap := make(map[string]polymarket.Market)
-	sportConditionIDs := make(map[string]bool)
 	for i := 0; i < len(conditionIDList); i += 20 {
 		end := i + 20
 		if end > len(conditionIDList) {
@@ -101,17 +135,6 @@ func FetchSportsTradesData(
 
 		for _, m := range markets {
 			marketMap[m.ConditionID] = m
-			if isSportMarket(m, sport) {
-				sportConditionIDs[m.ConditionID] = true
-			}
-		}
-	}
-
-	LogToolf(ctx, "Filtering %d trades down to %s positions", len(trades), strings.ToUpper(sport))
-	var sportTrades []polymarket.Trade
-	for _, trade := range trades {
-		if sportConditionIDs[trade.ConditionID] || isSportText(trade.Title, sport) {
-			sportTrades = append(sportTrades, trade)
 		}
 	}
 
@@ -150,6 +173,10 @@ func isSportMarket(m polymarket.Market, sport string) bool {
 	return isSportText(m.Question, sport) || isSportText(m.Slug, sport)
 }
 
+func isSportTrade(t polymarket.Trade, sport string) bool {
+	return isSportText(t.Title, sport) || isSportText(t.Slug, sport)
+}
+
 func isSportText(text, sport string) bool {
 	value := strings.ToLower(text)
 	if strings.Contains(value, sport) {
@@ -157,4 +184,11 @@ func isSportText(text, sport string) bool {
 	}
 
 	return sport == "nba" && strings.Contains(value, "basketball")
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

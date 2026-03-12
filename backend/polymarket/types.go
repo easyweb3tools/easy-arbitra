@@ -23,6 +23,7 @@ type Trade struct {
 	Side        string  `json:"side"`        // "BUY" or "SELL"
 	Asset       string  `json:"asset"`       // token ID
 	ConditionID string  `json:"conditionId"` // market condition ID
+	Slug        string  `json:"slug"`
 	Size        float64 `json:"size"`
 	Price       float64 `json:"price"`
 	Timestamp   int64   `json:"timestamp"`
@@ -41,6 +42,7 @@ func (t *Trade) UnmarshalJSON(data []byte) error {
 		Side        string          `json:"side"`
 		Asset       string          `json:"asset"`
 		ConditionID string          `json:"conditionId"`
+		Slug        string          `json:"slug"`
 		Size        json.RawMessage `json:"size"`
 		Price       json.RawMessage `json:"price"`
 		Timestamp   int64           `json:"timestamp"`
@@ -68,6 +70,7 @@ func (t *Trade) UnmarshalJSON(data []byte) error {
 	t.Side = raw.Side
 	t.Asset = raw.Asset
 	t.ConditionID = raw.ConditionID
+	t.Slug = raw.Slug
 	t.Size = size
 	t.Price = price
 	t.Timestamp = raw.Timestamp
@@ -80,7 +83,7 @@ func (t *Trade) UnmarshalJSON(data []byte) error {
 type Market struct {
 	ID          string  `json:"id"`
 	Question    string  `json:"question"`
-	ConditionID string  `json:"condition_id"`
+	ConditionID string  `json:"conditionId"`
 	Slug        string  `json:"slug"`
 	VolumeNum   float64 `json:"volumeNum"`
 	StartDate   string  `json:"startDateIso"`

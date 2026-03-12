@@ -96,5 +96,18 @@ func (c *Client) GetMarkets(conditionIDs []string) ([]Market, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&markets); err != nil {
 		return nil, fmt.Errorf("decode markets: %w", err)
 	}
+
+	if len(markets) == 0 && len(conditionIDs) > 1 {
+		fallback := make([]Market, 0, len(conditionIDs))
+		for _, conditionID := range conditionIDs {
+			single, err := c.GetMarkets([]string{conditionID})
+			if err != nil {
+				return nil, err
+			}
+			fallback = append(fallback, single...)
+		}
+		return fallback, nil
+	}
+
 	return markets, nil
 }
