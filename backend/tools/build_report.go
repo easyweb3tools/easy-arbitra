@@ -16,11 +16,11 @@ type ReportPayload struct {
 }
 
 type WalletCard struct {
-	Address     string `json:"address"`
-	DisplayName string `json:"display_name"`
+	Address      string `json:"address"`
+	DisplayName  string `json:"display_name"`
 	ProfileImage string `json:"profile_image"`
-	Sport       string `json:"sport"`
-	TotalTrades int    `json:"total_trades"`
+	Sport        string `json:"sport"`
+	TotalTrades  int    `json:"total_trades"`
 }
 
 type RadarChart struct {

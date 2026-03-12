@@ -10,6 +10,8 @@ The backend is a Go service that wraps Polymarket data access and deterministic 
 - Compute deterministic style metrics from enriched trade data
 - Build a structured payload for the frontend dashboard
 - Expose the tool chain through MCP and HTTP
+- Sync NBA leaderboard wallets into Postgres on a schedule
+- Generate style tags for homepage grouping
 
 ## Service Endpoints
 
@@ -17,6 +19,8 @@ The backend is a Go service that wraps Polymarket data access and deterministic 
 - `:8082` REST bridge
 - `GET /api/health` health check
 - `POST /api/tools/call` tool invocation endpoint
+- `GET /api/style-wallets` homepage style-group feed
+- `POST /api/style-wallets/sync` manual sync trigger
 
 ## Tool Pipeline
 
@@ -46,6 +50,17 @@ backend/
 ```
 
 ## Local Development
+
+Key environment variables:
+
+- `DATABASE_URL` enables Postgres persistence and scheduled syncing
+- `AI_BASE_URL`
+- `AI_MODEL`
+- `AI_API_KEY`
+- `AI_TIMEOUT_MS` optional, used for batch style tagging
+- `LEADERBOARD_SYNC_INTERVAL` optional, defaults to `4h`
+- `LEADERBOARD_TOP_LIMIT` optional, defaults to `100`
+- `WALLET_ANALYSIS_LIMIT` optional, defaults to `3000`
 
 ```bash
 go run .

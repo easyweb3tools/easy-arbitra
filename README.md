@@ -76,6 +76,7 @@ The frontend expects these runtime values:
 - `AI_API_KEY`
 - `AI_TIMEOUT_MS` optional, defaults to `120000`
 - `MCP_BRIDGE_URL`
+- `DATABASE_URL` on the backend for Postgres-backed wallet catalog sync
 
 The frontend calls an OpenAI-compatible `chat/completions` endpoint for the final explanation. If the AI provider is unavailable, the app still completes the deterministic 4-step tool pipeline and falls back to a locally generated narrative.
 
@@ -86,6 +87,7 @@ For local development, `MCP_BRIDGE_URL` should usually point to `http://localhos
 - Frontend: GitHub Actions builds and deploys the Next.js app to Cloudflare Workers
 - Backend: GitHub Actions builds and publishes a Docker image to `ghcr.io`
 - Runtime topology: Cloudflare Worker calls the backend running on your EC2 instance
+- If `DATABASE_URL` is set on the backend, it will sync the top 100 NBA wallets from Polymarket Analytics every 4 hours and store AI style tags for homepage grouping
 
 ## Tech Stack
 
