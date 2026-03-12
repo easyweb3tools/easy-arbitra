@@ -8,7 +8,12 @@ import {
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 import { callMCPTool } from "./mcp-bridge";
 import { toolConfig } from "./tool-definitions";
-import type { DecisionStep, ReportPayload, AnalyzeResponse } from "./types";
+import type {
+  DecisionStep,
+  ReportPayload,
+  AnalyzeResponse,
+  ToolLogEntry,
+} from "./types";
 
 const REGION = process.env.AWS_REGION || "us-east-1";
 const BEDROCK_BEARER_TOKEN = process.env.AWS_BEARER_TOKEN_BEDROCK?.trim();
@@ -51,6 +56,7 @@ IMPORTANT: Always call tools in the exact order above. Pass data between steps:
 // SSE event types
 export type StreamEvent =
   | { type: "step"; data: DecisionStep }
+  | { type: "tool_log"; data: ToolLogEntry }
   | { type: "report"; data: ReportPayload }
   | { type: "explanation"; data: string }
   | { type: "done"; data: AnalyzeResponse }
@@ -76,8 +82,21 @@ async function analyzeWithBedrock(
   onEvent: (event: StreamEvent) => void
 ): Promise<void> {
   const decisionLog: DecisionStep[] = [];
+  const toolLogs: Record<string, string[]> = {};
   let reportPayload: ReportPayload | null = null;
   let explanation = "";
+
+  const emitToolLog = (tool: string, message: string) => {
+    toolLogs[tool] = [...(toolLogs[tool] || []), message];
+    onEvent({
+      type: "tool_log",
+      data: {
+        tool,
+        message,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  };
 
   const messages: Message[] = [
     {
@@ -153,7 +172,8 @@ async function analyzeWithBedrock(
       try {
         resultText = await callMCPTool(
           name!,
-          (input as Record<string, unknown>) || {}
+          (input as Record<string, unknown>) || {},
+          (message) => emitToolLog(name!, message)
         );
         resultSummary = summarizeResult(name!, resultText);
       } catch (error) {
@@ -169,6 +189,7 @@ async function analyzeWithBedrock(
         reasoning: getToolReasoning(name!),
         timestamp,
         result_summary: resultSummary,
+        logs: toolLogs[name!] || [],
       };
       decisionLog.push(step);
 
@@ -270,6 +291,19 @@ async function analyzeWithoutBedrock(
   cause: unknown
 ): Promise<void> {
   const decisionLog: DecisionStep[] = [];
+  const toolLogs: Record<string, string[]> = {};
+
+  const emitToolLog = (tool: string, message: string) => {
+    toolLogs[tool] = [...(toolLogs[tool] || []), message];
+    onEvent({
+      type: "tool_log",
+      data: {
+        tool,
+        message,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  };
 
   const addStep = (tool: string, resultText: string) => {
     const step: DecisionStep = {
@@ -278,6 +312,7 @@ async function analyzeWithoutBedrock(
       reasoning: getToolReasoning(tool),
       timestamp: new Date().toISOString(),
       result_summary: summarizeResult(tool, resultText),
+      logs: toolLogs[tool] || [],
     };
 
     decisionLog.push(step);
@@ -286,7 +321,7 @@ async function analyzeWithoutBedrock(
 
   const walletInfoText = await callMCPTool("resolve_wallet_target", {
     input: walletInput,
-  });
+  }, (message) => emitToolLog("resolve_wallet_target", message));
   addStep("resolve_wallet_target", walletInfoText);
   const walletInfo = JSON.parse(walletInfoText) as ResolveWalletResult;
 
@@ -294,14 +329,14 @@ async function analyzeWithoutBedrock(
     wallet: walletInfo.wallet_address,
     sport: "nba",
     limit: 500,
-  });
+  }, (message) => emitToolLog("fetch_sports_trades", message));
   addStep("fetch_sports_trades", tradesText);
   const tradesResult = JSON.parse(tradesText) as FetchTradesResult;
 
   const metricsText = await callMCPTool("calculate_style_metrics", {
     wallet: walletInfo.wallet_address,
     trades_json: tradesText,
-  });
+  }, (message) => emitToolLog("calculate_style_metrics", message));
   addStep("calculate_style_metrics", metricsText);
   const metricsResult = JSON.parse(metricsText) as MetricsResult;
 
@@ -312,7 +347,7 @@ async function analyzeWithoutBedrock(
       total_trades: tradesResult.total_trades,
       sport: tradesResult.sport,
     }),
-  });
+  }, (message) => emitToolLog("build_report_payload", message));
   addStep("build_report_payload", reportText);
 
   const reportPayload = JSON.parse(reportText) as ReportPayload;

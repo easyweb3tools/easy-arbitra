@@ -7,7 +7,7 @@ import { DecisionLog } from "@/components/decision-log";
 import { WalletCard } from "@/components/wallet-card";
 import { RadarChart } from "@/components/radar-chart";
 import { ReportSummary } from "@/components/report-summary";
-import type { AnalyzeResponse, DecisionStep } from "@/lib/types";
+import type { AnalyzeResponse, DecisionStep, ToolLogEntry } from "@/lib/types";
 
 const STEP_LABELS = [
   "Resolving wallet",
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [completedSteps, setCompletedSteps] = useState<DecisionStep[]>([]);
   const [activeStep, setActiveStep] = useState(-1);
+  const [toolLogs, setToolLogs] = useState<ToolLogEntry[]>([]);
   const hasStarted = useRef(false);
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export default function Dashboard() {
     setError("");
     setCompletedSteps([]);
     setActiveStep(0);
+    setToolLogs([]);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -95,6 +97,9 @@ export default function Dashboard() {
               setCompletedSteps((prev) => [...prev, event.data]);
               setActiveStep(event.data.step);
               break;
+            case "tool_log":
+              setToolLogs((prev) => [...prev, event.data]);
+              break;
             case "error":
               throw new Error(event.data);
             case "done":
@@ -131,62 +136,93 @@ export default function Dashboard() {
             const completed = completedSteps.find((s) => s.step === i + 1);
             const isActive = activeStep === i || (activeStep > i && !completed);
             const isPending = activeStep < i;
+            const toolName = [
+              "resolve_wallet_target",
+              "fetch_sports_trades",
+              "calculate_style_metrics",
+              "build_report_payload",
+            ][i];
+            const latestLog = [...toolLogs]
+              .reverse()
+              .find((entry) => entry.tool === toolName)?.message;
             return (
-              <div
-                key={label}
-                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-300 ${
-                  completed
-                    ? "bg-green-500/10 border border-green-500/20"
-                    : isActive
-                      ? "bg-blue-500/10 border border-blue-500/20"
-                      : "bg-white/5 border border-white/5"
-                }`}
-              >
-                <div className="w-6 h-6 flex items-center justify-center">
-                  {completed ? (
-                    <svg
-                      className="w-5 h-5 text-green-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  ) : isActive ? (
-                    <span className="h-4 w-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-                  ) : (
-                    <span
-                      className={`text-sm font-mono ${isPending ? "text-white/20" : "text-white/50"}`}
-                    >
-                      {i + 1}
+              <div key={label}>
+                <div
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-300 ${
+                    completed
+                      ? "bg-green-500/10 border border-green-500/20"
+                      : isActive
+                        ? "bg-blue-500/10 border border-blue-500/20"
+                        : "bg-white/5 border border-white/5"
+                  }`}
+                >
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    {completed ? (
+                      <svg
+                        className="w-5 h-5 text-green-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    ) : isActive ? (
+                      <span className="h-4 w-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                    ) : (
+                      <span
+                        className={`text-sm font-mono ${isPending ? "text-white/20" : "text-white/50"}`}
+                      >
+                        {i + 1}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-sm ${
+                      completed
+                        ? "text-green-300"
+                        : isActive
+                          ? "text-blue-300"
+                          : "text-white/30"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {completed?.result_summary && (
+                    <span className="ml-auto text-xs text-white/40 truncate max-w-[200px]">
+                      {completed.result_summary}
                     </span>
                   )}
                 </div>
-                <span
-                  className={`text-sm ${
-                    completed
-                      ? "text-green-300"
-                      : isActive
-                        ? "text-blue-300"
-                        : "text-white/30"
-                  }`}
-                >
-                  {label}
-                </span>
-                {completed?.result_summary && (
-                  <span className="ml-auto text-xs text-white/40 truncate max-w-[200px]">
-                    {completed.result_summary}
-                  </span>
+                {!completed?.result_summary && latestLog && (
+                  <div className="ml-9 mt-1 text-xs text-white/45">
+                    {latestLog}
+                  </div>
                 )}
               </div>
             );
           })}
         </div>
+
+        {toolLogs.length > 0 && (
+          <div className="max-w-2xl mx-auto mt-8 rounded-lg border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-white/50">
+              Live backend log
+            </p>
+            <div className="mt-3 max-h-64 space-y-2 overflow-auto font-mono text-xs text-white/60">
+              {toolLogs.map((entry, idx) => (
+                <div key={`${entry.timestamp}-${idx}`}>
+                  [{new Date(entry.timestamp).toLocaleTimeString()}] {entry.tool}:{" "}
+                  {entry.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="max-w-md mx-auto mt-6 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-sm">
